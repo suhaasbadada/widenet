@@ -192,3 +192,147 @@ def generate_outreach(
         f"Job description:\n{job_description}"
     )
     return _chat(system_prompt=_OUTREACH_SYSTEM, user_content=user_content)
+
+
+# ---------------------------------------------------------------------------
+# Cover letter generation
+# ---------------------------------------------------------------------------
+
+_COVER_LETTER_SYSTEM = """
+You are an expert career writing assistant.
+
+Return ONLY a JSON object with exactly this field:
+{
+  "cover_letter": "<full cover letter body>"
+}
+
+Rules:
+- Use the candidate profile and provided job context only.
+- Do not invent experience, projects, or skills.
+- Keep writing natural and specific to the JD.
+- Use 4 paragraphs: intent, relevant experience, proof via projects/impact, close.
+- Keep length between 250 and 450 words.
+- No bullet points, no headings, no emojis.
+""".strip()
+
+
+def generate_cover_letter(
+    profile: dict[str, Any],
+    job_title: str,
+    company: str,
+    job_description: str,
+    company_context: str | None = None,
+) -> dict[str, Any]:
+    """Generate a personalized cover letter from profile + JD context."""
+    user_content = (
+        f"Candidate profile:\n{json.dumps(profile, indent=2)}\n\n"
+        f"Job title: {job_title}\n"
+        f"Company: {company}\n\n"
+        f"Job description:\n{job_description}\n\n"
+        f"Company context:\n{company_context or ''}"
+    )
+    return _chat(system_prompt=_COVER_LETTER_SYSTEM, user_content=user_content)
+
+
+# ---------------------------------------------------------------------------
+# Job match scoring
+# ---------------------------------------------------------------------------
+
+_JOB_MATCH_SYSTEM = """
+You are a hiring assistant that scores how well a candidate profile matches a job.
+
+Return ONLY a JSON object with exactly these fields:
+{
+  "match_score": 0,
+  "reasoning": "<short explanation>",
+  "skills_matched": ["skill1", "skill2"]
+}
+
+Rules:
+- match_score must be an integer between 0 and 100.
+- reasoning must be concise and specific to the job requirements.
+- skills_matched must contain only concrete skills found in both profile and job context.
+""".strip()
+
+
+def score_job_match(
+    profile: dict[str, Any],
+    job_title: str,
+    company: str,
+    job_description: str,
+) -> dict[str, Any]:
+    """Score a profile against a job and return structured matching details."""
+    user_content = (
+        f"Candidate profile:\n{json.dumps(profile, indent=2)}\n\n"
+        f"Target role: {job_title} at {company}\n\n"
+        f"Job description:\n{job_description}"
+    )
+    return _chat(system_prompt=_JOB_MATCH_SYSTEM, user_content=user_content)
+
+
+# ---------------------------------------------------------------------------
+# Job copilot generation
+# ---------------------------------------------------------------------------
+
+_COPILOT_SYSTEM = """
+You are an AI job application copilot.
+
+Your job is to help users:
+- generate job application answers
+- write cover letters
+- improve resume content
+- create cold outreach messages
+
+You always rely on:
+- user profile (resume, projects, experience)
+- job description (JD)
+- company context (if available)
+
+You must always:
+- personalize responses based on user background
+- align output to job description requirements
+- avoid generic or vague writing
+- never invent experience or skills not present in user data
+
+When writing:
+- be concise, natural, and human-like
+- prioritize specificity over filler language
+- keep outputs ready to copy-paste
+
+If the task is unclear:
+- ask one short clarifying question instead of guessing
+
+Return ONLY a JSON object with exactly this field:
+{
+  "output": "<final output text>"
+}
+""".strip()
+
+
+def generate_job_copilot_output(
+    profile: dict[str, Any],
+    task: str,
+    job_title: str,
+    job_description: str,
+    company: str | None,
+    company_context: str | None,
+    question: str | None,
+    user_instruction: str | None,
+) -> dict[str, Any]:
+    """Generate a single final output text for a job-copilot task."""
+    user_content = (
+        f"Task: {task}\n\n"
+        f"Candidate profile:\n{json.dumps(profile, indent=2)}\n\n"
+        f"Job title: {job_title}\n"
+        f"Company: {company or ''}\n\n"
+        f"Job description:\n{job_description}\n\n"
+        f"Company context:\n{company_context or ''}\n\n"
+        f"Question (for job answer tasks):\n{question or ''}\n\n"
+        f"Additional user instruction:\n{user_instruction or ''}\n\n"
+        "Task guidance:\n"
+        "- task=job_answer: return only the tailored answer text\n"
+        "- task=cover_letter: return only the full cover letter body (no headings)\n"
+        "- task=resume_improve: return only improved resume bullet/content text\n"
+        "- task=cold_outreach: return only the outreach message with a meaningful subject line at the top"
+    )
+    return _chat(system_prompt=_COPILOT_SYSTEM, user_content=user_content)

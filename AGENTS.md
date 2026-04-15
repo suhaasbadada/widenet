@@ -130,6 +130,44 @@ Generate short, personalized recruiter messages:
 ### application_service
 - Handles job application tracking logic
 
+---
+
+### Cover Letter
+
+When generating a cover letter:
+
+1. Always use:
+   - User resume / profile data
+   - Job description (JD)
+   - Company context if available
+
+2. Structure:
+   - Opening paragraph: role + intent + enthusiasm
+   - Body paragraph 1: relevant experience aligned to JD
+   - Body paragraph 2: projects + achievements as proof
+   - Closing paragraph: interest + call to action
+
+3. Constraints:
+   - Do NOT fabricate experience or skills
+   - Do NOT be generic or template-like
+   - Keep tone professional but natural (not overly formal)
+   - Keep length between 250–450 words unless user specifies otherwise
+
+4. Personalization rules:
+   - Directly map JD requirements → user experience
+   - Prefer specific examples over vague claims
+   - Mention 1–2 strongest projects only
+   - Align motivation with company/product/domain
+
+5. Style:
+   - Human-like writing
+   - No bullet points
+   - No headings
+   - No repetition
+
+Always prioritize specificity over polish.
+If a choice must be made, prefer concrete examples from user history over generic writing quality.
+
 ## Output Format Rules (VERY IMPORTANT)
 
 All AI responses MUST be structured JSON.
@@ -154,3 +192,4 @@ Outreach:
   "subject": "",
   "message": ""
 }
+
