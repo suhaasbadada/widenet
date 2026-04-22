@@ -55,6 +55,20 @@ def _chat(system_prompt: str, user_content: str) -> dict[str, Any]:
     return json.loads(raw)
 
 
+def generate_llm_response(system_prompt: str, user_prompt: str) -> str:
+    """Generate raw LLM text content for workflows that handle parsing/validation externally."""
+    response = _client.chat.completions.create(
+        model=_MODEL,
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=0.2,
+    )
+    return (response.choices[0].message.content or "").strip()
+
+
 # ---------------------------------------------------------------------------
 # Resume parsing
 # ---------------------------------------------------------------------------
