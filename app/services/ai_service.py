@@ -76,17 +76,20 @@ def generate_llm_response(system_prompt: str, user_prompt: str) -> str:
 _RESUME_PARSE_SYSTEM = """
 You are a resume parser. Extract structured information from the provided resume text.
 
-Return ONLY a JSON object with exactly these fields:
+Return ONLY a JSON object with at least these top-level fields:
 {
   "headline": "<one-line professional title, e.g. Senior Backend Engineer>",
   "summary": "<2-3 sentence professional summary>",
-  "skills": ["skill1", "skill2"],
+  "skills": {
+    "<category_name>": ["skill1", "skill2"]
+  },
   "experience": [
     {
       "title": "<job title>",
       "company": "<company name>",
       "duration": "<e.g. Jan 2021 - Mar 2023>",
-      "description": "<brief description of responsibilities and impact>"
+      "location": "<optional>",
+      "points": ["bullet 1", "bullet 2"]
     }
   ]
 }
@@ -94,9 +97,85 @@ Return ONLY a JSON object with exactly these fields:
 Rules:
 - Do not invent information not present in the resume.
 - Use plain professional language. No emojis or symbols.
-- skills must be a flat list of strings.
+- Preserve skill subcategories from the resume whenever possible (frontend, backend, languages, databases, cloud, tools, frameworks, etc.).
+- Do NOT collapse all skills into one flat list.
 - experience must be ordered most-recent first.
+- Preserve all meaningful bullet points for each experience entry in points[]; do not keep only one point.
+- If the resume has additional sections (projects, education, certifications, awards, publications, volunteering), include them with structured fields.
 """.strip()
+
+
+def _to_string_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        text = value.strip()
+        return [text] if text else []
+    return []
+
+
+def _normalize_skills(skills: Any) -> dict[str, list[str]]:
+    if isinstance(skills, dict):
+        normalized: dict[str, list[str]] = {}
+        for key, value in skills.items():
+            key_name = str(key).strip() or "general"
+            normalized[key_name] = _to_string_list(value)
+        return normalized
+    return {"general": _to_string_list(skills)}
+
+
+def _normalize_experience(experience: Any) -> list[dict[str, Any]]:
+    if not isinstance(experience, list):
+        return []
+
+    normalized_items: list[dict[str, Any]] = []
+    for item in experience:
+        if not isinstance(item, dict):
+            continue
+        points = _to_string_list(item.get("points"))
+        if not points:
+            points = _to_string_list(item.get("bullets"))
+        if not points:
+            points = _to_string_list(item.get("responsibilities"))
+        if not points:
+            points = _to_string_list(item.get("description"))
+
+        normalized_items.append(
+            {
+                "title": str(item.get("title", "")).strip(),
+                "company": str(item.get("company", "")).strip(),
+                "duration": str(item.get("duration", "")).strip(),
+                "location": str(item.get("location", "")).strip(),
+                "points": points,
+            }
+        )
+
+    return normalized_items
+
+
+def _normalize_parsed_resume(parsed: Any) -> dict[str, Any]:
+    if not isinstance(parsed, dict):
+        return {
+            "headline": "",
+            "summary": "",
+            "skills": {"general": []},
+            "experience": [],
+        }
+
+    normalized: dict[str, Any] = {
+        "headline": str(parsed.get("headline", "")).strip(),
+        "summary": str(parsed.get("summary", "")).strip(),
+        "skills": _normalize_skills(parsed.get("skills", {})),
+        "experience": _normalize_experience(parsed.get("experience", [])),
+    }
+
+    # Preserve additional top-level sections from the resume without flattening.
+    for key, value in parsed.items():
+        if key in normalized:
+            continue
+        normalized[key] = value
+
+    return normalized
 
 
 def parse_resume(raw_resume: str) -> dict[str, Any]:
@@ -108,10 +187,11 @@ def parse_resume(raw_resume: str) -> dict[str, Any]:
     Returns:
         Dict with keys: headline, summary, skills, experience.
     """
-    return _chat(
+    parsed = _chat(
         system_prompt=_RESUME_PARSE_SYSTEM,
         user_content=f"Resume text:\n\n{raw_resume}",
     )
+    return _normalize_parsed_resume(parsed)
 
 
 # ---------------------------------------------------------------------------

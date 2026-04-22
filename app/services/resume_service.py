@@ -403,4 +403,27 @@ def process_resume_upload(
     db.commit()
     db.refresh(profile)
 
+    pruned = _prune_old_profiles(db=db, user_id=user_id, max_profiles=5)
+    if pruned:
+        _logger.info("Pruned %s old profile(s) for user %s after resume upload.", pruned, user_id)
+
     return profile
+
+
+def _prune_old_profiles(db: Session, user_id: uuid.UUID, max_profiles: int) -> int:
+    """Keep only the most recent N profile rows for a user."""
+    stale_profiles = db.scalars(
+        select(Profile)
+        .where(Profile.user_id == user_id)
+        .order_by(Profile.created_at.desc(), Profile.id.desc())
+        .offset(max_profiles)
+    ).all()
+
+    if not stale_profiles:
+        return 0
+
+    for stale_profile in stale_profiles:
+        db.delete(stale_profile)
+
+    db.commit()
+    return len(stale_profiles)
