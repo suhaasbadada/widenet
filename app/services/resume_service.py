@@ -265,7 +265,6 @@ def generate_tailored_resume(
                 user_prompt=user_prompt,
             )
             parsed = _parse_llm_json(llm_raw)
-            _validate_exact_schema(validated_base_resume, parsed)
             normalized = _normalize_to_schema(validated_base_resume, parsed)
             _validate_exact_schema(validated_base_resume, normalized)
 
