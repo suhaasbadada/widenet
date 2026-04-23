@@ -134,14 +134,19 @@ All endpoints return a consistent envelope:
 ## Architecture
 
 ```
-app/
-  api/routes/     HTTP layer only — no business logic
-  services/       All business logic and AI calls
-  models/         SQLAlchemy models
-  schemas/        Pydantic request/response validation
-  core/           Security (JWT, hashing) and authorization dependencies
-  db/             Session management and startup schema sync
-  utils/          File parsing utilities
+apps/
+  api/
+    app/
+      api/routes/  HTTP layer only — no business logic
+      services/    All business logic and AI calls
+      models/      SQLAlchemy models
+      schemas/     Pydantic request/response validation
+      core/        Security and authorization dependencies
+      db/          Session management and startup schema sync
+      utils/       File parsing utilities
+  web/
+    src/app/       Next.js App Router pages and layouts
+    src/lib/       Frontend API client and shared browser utilities
 ```
 
 ---

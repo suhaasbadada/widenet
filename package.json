@@ -1,0 +1,13 @@
+{
+  "name": "widenet",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev:web": "npm --prefix apps/web run dev",
+    "build:web": "npm --prefix apps/web run build",
+    "lint:web": "npm --prefix apps/web run lint",
+    "dev:api": "python -m uvicorn app.main:app --reload --app-dir apps/api --env-file apps/api/.env"
+  }
+}
