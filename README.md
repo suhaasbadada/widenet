@@ -1,101 +1,161 @@
 # WideNet
 
-AI-powered job application copilot to help you apply faster, write better, and stand out.
+AI-powered job application copilot — FastAPI + PostgreSQL backend.
 
 ---
 
 ## Overview
 
-WideNet is a unified platform that simplifies the job application process using AI. Instead of manually tailoring resumes, rewriting the same answers, and drafting outreach messages for every job, WideNet automates and personalizes the entire workflow.
-
-Upload your resume, add a job description, and instantly generate:
-- tailored application answers  
-- high-quality cover letters  
-- personalized cold outreach messages  
-
-Everything is stored and organized per application, giving you a clean, structured way to manage your job search.
+WideNet automates the repetitive parts of job searching. Upload a resume, add a job description, and instantly generate tailored application answers, cover letters, cold outreach emails, and an ATS-optimized resume. Everything is tied to applications and stored per user.
 
 ---
 
-## Problem
+## Stack
 
-Job applications are repetitive, time-consuming, and inefficient.
-
-- Applicants repeatedly answer the same questions for every job  
-- Tailoring content to each company and role is tedious  
-- Cold outreach is underutilized due to effort required  
-- Resumes and profiles are not optimized for quick evaluation  
-
-WideNet solves this by turning your job search into a structured, AI-assisted workflow.
+- **Runtime**: Python 3.12, FastAPI
+- **Database**: PostgreSQL (Supabase)
+- **AI**: Groq (llama-3.3-70b-versatile)
+- **Storage**: Supabase Storage
+- **Auth**: JWT (HS256), PBKDF2-HMAC-SHA256 password hashing
 
 ---
 
-## What You Can Do
+## Authorization Model
 
-- Upload your resume and build a structured profile  
-- Add job descriptions and track applications  
-- Generate personalized answers to application questions  
-- Generate complete cover letters tailored to each job  
-- Create cold emails for recruiters and hiring managers  
-- Manage everything in one place  
+All users have a persisted `role` field in the database: `user` or `admin`.
 
----
+- Role is included in the JWT on login
+- `get_current_user` resolves the caller from DB on every protected request
+- `require_admin` dependency enforces admin-only access at the route level
 
-## How It Works
-
-1. Upload your resume  
-2. System extracts and structures your experience, projects, and skills  
-3. Add a job description  
-4. AI analyzes the role and aligns it with your profile  
-5. Generate:
-   - answers  
-   - cover letter  
-   - outreach messages  
-6. Track and manage your application  
+| Access level | Who | How to get it |
+|---|---|---|
+| Public | Anyone | No token needed |
+| Authenticated | Registered users | Bearer JWT from login |
+| Admin | Admin users | Email listed in `ADMIN_EMAILS`, then re-login |
 
 ---
 
-## V1 Scope
+## API Reference
 
-The current version focuses on delivering a complete, end-to-end job application workflow.
+All routes are prefixed `/api/v1`.
 
-### Core Features
+### Auth
 
-- User authentication (register, login, logout)  
-- Resume upload and structured profile extraction  
-- Profile storage and refresh capability  
-- Job creation and listing  
-- Application creation and tracking  
-- Application status management (applied, interview, offer, rejected)  
+| Method | Path | Access | Description |
+|---|---|---|---|
+| POST | `/auth/register` | Public | Register and receive a JWT |
+| POST | `/auth/login` | Public | Login and receive a JWT |
+| POST | `/auth/logout` | Authenticated | Stateless logout (discard token client-side) |
 
-### AI Features
+### Users
 
-- Answer generation based on job description and user profile  
-- Cover letter generation  
-- Cold email / outreach message generation  
-- AI copilot endpoint for unified generation  
+| Method | Path | Access | Description |
+|---|---|---|---|
+| GET | `/users/me` | Authenticated | Fetch own record |
+| PUT | `/users/me` | Authenticated | Update own email |
+| GET | `/users` | Admin | List all users |
+| GET | `/users/{user_id}` | Admin | Fetch a user by id |
+| POST | `/users` | Admin | Provision a user directly |
+| PUT | `/users/{user_id}` | Admin | Update a user's email or role |
+| DELETE | `/users/{user_id}` | Admin | Delete a user (cascades to related records) |
 
-### System Behavior
+### Resume Upload
 
-- All generated content is tied to applications  
-- AI outputs are personalized using user profile + job description  
-- Users can manage all application-related content in one place  
+| Method | Path | Access | Description |
+|---|---|---|---|
+| POST | `/upload/resume` | Authenticated | Upload PDF or DOCX — extracts text, runs AI parse, stores profile |
+
+### Resumes
+
+| Method | Path | Access | Description |
+|---|---|---|---|
+| GET | `/resumes/me` | Authenticated | Fetch latest stored resume/profile |
+| POST | `/resumes/generate` | Authenticated | Generate an ATS-tailored resume from stored profile and a JD |
+| POST | `/resumes/render-docx` | Authenticated | Render resume JSON to a downloadable DOCX file |
+
+### Profiles
+
+| Method | Path | Access | Description |
+|---|---|---|---|
+| GET | `/profiles/{user_id}` | Authenticated | Fetch structured profile for a user |
+| PUT | `/profiles/{user_id}/refresh` | Authenticated | Re-parse and update profile from stored raw resume |
+
+### Jobs
+
+| Method | Path | Access | Description |
+|---|---|---|---|
+| POST | `/jobs` | Authenticated | Create a job |
+| GET | `/jobs` | Authenticated | List all jobs |
+| GET | `/jobs/{job_id}` | Authenticated | Fetch a job by id |
+
+### Applications
+
+| Method | Path | Access | Description |
+|---|---|---|---|
+| POST | `/applications` | Authenticated | Create an application (links user to a job) |
+| GET | `/applications` | Authenticated | List applications |
+| GET | `/applications/{application_id}` | Authenticated | Fetch an application by id |
+| PUT | `/applications/{application_id}` | Authenticated | Update application status |
+
+### Answers
+
+| Method | Path | Access | Description |
+|---|---|---|---|
+| POST | `/answers/generate` | Authenticated | Generate a tailored answer to a job application question |
+
+### Outreach
+
+| Method | Path | Access | Description |
+|---|---|---|---|
+| POST | `/outreach/cover-letter` | Authenticated | Generate a cover letter tailored to a job |
+| POST | `/outreach/cold-email` | Authenticated | Generate a cold recruiter outreach email |
+| POST | `/outreach/copilot` | Authenticated | Unified AI copilot — generates answer, cover letter, or outreach in one call |
+
+### Job Match
+
+| Method | Path | Access | Description |
+|---|---|---|---|
+| POST | `/job-match/match` | Authenticated | Score and rank job listings against a user profile |
 
 ---
 
-## Out of Scope (For Now)
+## API Response Format
 
-- Public/shareable candidate profiles  
-- Credit system and payments  
-- Advanced template customization  
-- Chrome extension / auto-apply  
-- Recruiter-facing dashboards  
-- Advanced analytics and insights  
+All endpoints return a consistent envelope:
+
+```json
+{ "success": true, "data": {} }
+{ "success": false, "error": "message" }
+```
+
+---
+
+## Architecture
+
+```
+app/
+  api/routes/     HTTP layer only — no business logic
+  services/       All business logic and AI calls
+  models/         SQLAlchemy models
+  schemas/        Pydantic request/response validation
+  core/           Security (JWT, hashing) and authorization dependencies
+  db/             Session management and startup schema sync
+  utils/          File parsing utilities
+```
+
+---
+
+## Out of Scope (Current Version)
+
+- PDF generation (requires LibreOffice; DOCX export is available)
+- Shareable public candidate profiles
+- Credit system and payments
+- Chrome extension / auto-apply
+- Recruiter-facing dashboards
 
 ---
 
 ## Vision
 
 WideNet aims to become a job search operating system — combining applications, outreach, and personal branding into a single intelligent platform.
-
----
