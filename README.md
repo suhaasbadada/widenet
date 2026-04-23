@@ -148,7 +148,6 @@ app/
 
 ## Out of Scope (Current Version)
 
-- PDF generation (requires LibreOffice; DOCX export is available)
 - Shareable public candidate profiles
 - Credit system and payments
 - Chrome extension / auto-apply
