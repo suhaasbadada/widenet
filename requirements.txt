@@ -8,6 +8,7 @@ click==8.3.2
 cryptography==46.0.7
 deprecation==2.1.0
 distro==1.9.0
+docxtpl==0.20.0
 fsspec==2026.3.0
 groq==1.1.2
 h11==0.16.0

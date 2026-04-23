@@ -2,7 +2,8 @@ import uuid
 
 from fastapi import APIRouter, Depends, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from starlette.background import BackgroundTask
 
 from app.core.security import InvalidTokenError, SecurityConfigurationError, decode_access_token
 from app.db.session import get_db
@@ -11,7 +12,8 @@ from app.schemas.resume_schema import (
     ResumeGenerateRequest,
     ResumeGenerateResponse,
 )
-from app.services import resume_service
+from app.schemas.resume_render_schema import ResumeRenderDocxRequest
+from app.services import resume_render_service, resume_service
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
@@ -71,3 +73,37 @@ def generate_tailored_resume(
         return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
 
     return {"success": True, "data": response.model_dump()}
+
+
+@router.post("/render-docx", response_model=None)
+@router.post("/render-pdf", response_model=None)
+def render_resume_docx(
+    payload: ResumeRenderDocxRequest,
+    credentials: HTTPAuthorizationCredentials = Security(_bearer_scheme),
+) -> FileResponse:
+    """Render resume JSON into DOCX using a DOCX template."""
+    _, error_message, status = _resolve_user_id(credentials)
+    if error_message is not None and status is not None:
+        return JSONResponse(status_code=status, content={"success": False, "error": error_message})
+
+    try:
+        artifact = resume_render_service.render_resume_to_docx(
+            resume_json=payload.resume_json,
+            template_path=payload.template_path,
+            file_name=payload.file_name,
+        )
+    except resume_render_service.ResumeRenderValidationError as exc:
+        return JSONResponse(status_code=400, content={"success": False, "error": str(exc)})
+    except resume_render_service.ResumeRenderFailedError as exc:
+        return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
+
+    filename = payload.file_name.strip() if payload.file_name else "resume.docx"
+    if not filename.lower().endswith(".docx"):
+        filename = f"{filename}.docx"
+
+    return FileResponse(
+        path=artifact.docx_path,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=filename,
+        background=BackgroundTask(artifact.temp_dir.cleanup),
+    )
