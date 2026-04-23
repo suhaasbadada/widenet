@@ -9,7 +9,7 @@ from app.schemas.resume_schema import (
     ResumeGenerateRequest,
     ResumeGenerateResponse,
 )
-from app.schemas.resume_render_schema import ResumeRenderDocxRequest
+from app.schemas.resume_render_schema import ResumeRenderDocxRequest, ResumeRenderPdfRequest
 from app.services import resume_render_service, resume_service
 from sqlalchemy.orm import Session
 
@@ -54,7 +54,6 @@ def generate_tailored_resume(
 
 
 @router.post("/render-docx", response_model=None)
-@router.post("/render-pdf", response_model=None)
 def render_resume_docx(
     payload: ResumeRenderDocxRequest,
     _: AuthenticatedUser = Depends(get_current_user),
@@ -78,6 +77,35 @@ def render_resume_docx(
     return FileResponse(
         path=artifact.docx_path,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=filename,
+        background=BackgroundTask(artifact.temp_dir.cleanup),
+    )
+
+
+@router.post("/render-pdf", response_model=None)
+def render_resume_pdf(
+    payload: ResumeRenderPdfRequest,
+    _: AuthenticatedUser = Depends(get_current_user),
+) -> FileResponse:
+    """Render resume JSON into PDF using a DOCX template."""
+    try:
+        artifact = resume_render_service.render_resume_to_pdf(
+            resume_json=payload.resume_json,
+            template_path=payload.template_path,
+            file_name=payload.file_name,
+        )
+    except resume_render_service.ResumeRenderValidationError as exc:
+        return JSONResponse(status_code=400, content={"success": False, "error": str(exc)})
+    except resume_render_service.ResumeRenderFailedError as exc:
+        return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
+
+    filename = payload.file_name.strip() if payload.file_name else "resume.pdf"
+    if not filename.lower().endswith(".pdf"):
+        filename = f"{filename}.pdf"
+
+    return FileResponse(
+        path=artifact.pdf_path,
+        media_type="application/pdf",
         filename=filename,
         background=BackgroundTask(artifact.temp_dir.cleanup),
     )

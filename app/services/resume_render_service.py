@@ -1,10 +1,15 @@
 import logging
+import os
+import shutil
+import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from docxtpl import DocxTemplate
+from docx import Document
+from docx.shared import Pt
 
 
 _logger = logging.getLogger(__name__)
@@ -32,6 +37,12 @@ class ResumeRenderFailedError(RuntimeError):
 @dataclass
 class RenderedDocxArtifact:
     docx_path: str
+    temp_dir: tempfile.TemporaryDirectory[str]
+
+
+@dataclass
+class RenderedPdfArtifact:
+    pdf_path: str
     temp_dir: tempfile.TemporaryDirectory[str]
 
 
@@ -99,6 +110,73 @@ def render_resume_to_docx(
     validated_resume = _normalize_resume_for_template(_validate_resume_json(resume_json))
     validated_template_path = _validate_template_path(template_path)
     _normalize_file_name(file_name)
+    temp_dir, docx_output = _render_docx_artifact(validated_resume, validated_template_path)
+
+    return RenderedDocxArtifact(docx_path=str(docx_output), temp_dir=temp_dir)
+
+
+def render_resume_to_pdf(
+    resume_json: Any,
+    template_path: str,
+    file_name: str = "resume.pdf",
+) -> RenderedPdfArtifact:
+    """Render a resume JSON into PDF using DOCX template + LibreOffice conversion."""
+    validated_resume = _normalize_resume_for_template(_validate_resume_json(resume_json))
+    validated_template_path = _validate_template_path(template_path)
+    _normalize_pdf_file_name(file_name)
+
+    temp_dir, docx_output = _render_docx_artifact(validated_resume, validated_template_path)
+    work_dir = Path(temp_dir.name)
+    pdf_output = docx_output.with_suffix(".pdf")
+    libreoffice_profile_dir = work_dir / "libreoffice-profile"
+    libreoffice_profile_dir.mkdir(parents=True, exist_ok=True)
+
+    # Template loops can leave trailing empty paragraphs that sometimes force
+    # one dangling line onto page 2 after DOCX->PDF conversion.
+    _trim_trailing_empty_paragraphs(docx_output)
+    _normalize_section_leading_spacing(docx_output)
+
+    soffice_bin = _resolve_libreoffice_binary()
+    command = [
+        soffice_bin,
+        f"-env:UserInstallation=file://{libreoffice_profile_dir}",
+        "--headless",
+        "--convert-to",
+        "pdf:writer_pdf_Export",
+        "--outdir",
+        str(work_dir),
+        str(docx_output),
+    ]
+
+    try:
+        result = subprocess.run(command, check=False, capture_output=True, text=True)
+    except Exception as exc:
+        temp_dir.cleanup()
+        _logger.exception("Failed to execute LibreOffice command using '%s'.", soffice_bin)
+        raise ResumeRenderFailedError("Failed to run LibreOffice for PDF conversion.") from exc
+
+    if result.returncode != 0:
+        temp_dir.cleanup()
+        _logger.error(
+            "LibreOffice PDF conversion failed (exit=%s). stderr=%s",
+            result.returncode,
+            (result.stderr or "").strip(),
+        )
+        raise ResumeRenderFailedError("Failed to convert DOCX to PDF.")
+
+    if not pdf_output.exists():
+        temp_dir.cleanup()
+        _logger.error("LibreOffice reported success but PDF was not created at '%s'.", pdf_output)
+        raise ResumeRenderFailedError("PDF output file was not created.")
+
+    return RenderedPdfArtifact(pdf_path=str(pdf_output), temp_dir=temp_dir)
+
+
+def _render_docx_artifact(
+    validated_resume: dict[str, Any],
+    validated_template_path: Path,
+) -> tuple[tempfile.TemporaryDirectory[str], Path]:
+    """Render validated resume data into a temporary DOCX artifact."""
 
     temp_dir = tempfile.TemporaryDirectory(prefix="widenet-resume-render-")
     work_dir = Path(temp_dir.name)
@@ -120,7 +198,39 @@ def render_resume_to_docx(
         _logger.error("DOCX output file was not created at '%s'.", docx_output)
         raise ResumeRenderFailedError("DOCX output file was not created.")
 
-    return RenderedDocxArtifact(docx_path=str(docx_output), temp_dir=temp_dir)
+    return temp_dir, docx_output
+
+
+def _resolve_libreoffice_binary() -> str:
+    """Resolve a usable LibreOffice CLI binary path."""
+    env_bin = os.environ.get("LIBREOFFICE_BIN", "").strip()
+    if env_bin:
+        candidate = Path(env_bin).expanduser()
+        if candidate.is_file():
+            return str(candidate)
+        found = shutil.which(env_bin)
+        if found:
+            return found
+
+    for name in ("soffice", "libreoffice"):
+        found = shutil.which(name)
+        if found:
+            return found
+
+    common_paths = [
+        Path("/Applications/LibreOffice.app/Contents/MacOS/soffice"),
+        Path("/usr/bin/soffice"),
+        Path("/usr/local/bin/soffice"),
+        Path("/opt/homebrew/bin/soffice"),
+        Path("/snap/bin/libreoffice"),
+    ]
+    for candidate in common_paths:
+        if candidate.is_file():
+            return str(candidate)
+
+    raise ResumeRenderFailedError(
+        "LibreOffice CLI was not found. Install LibreOffice or set LIBREOFFICE_BIN."
+    )
 
 
 def _validate_resume_json(resume_json: Any) -> dict[str, Any]:
@@ -181,6 +291,81 @@ def _normalize_file_name(file_name: str | None) -> str:
     if not name.lower().endswith(".docx"):
         name = f"{name}.docx"
     return name
+
+
+def _normalize_pdf_file_name(file_name: str | None) -> str:
+    name = (file_name or "resume.pdf").strip() or "resume.pdf"
+    if not name.lower().endswith(".pdf"):
+        name = f"{name}.pdf"
+    return name
+
+
+def _trim_trailing_empty_paragraphs(docx_path: Path) -> None:
+    """Remove trailing blank paragraphs to reduce PDF pagination drift."""
+    try:
+        document = Document(str(docx_path))
+    except Exception:
+        # If the file cannot be loaded, keep conversion behavior unchanged.
+        return
+
+    removed = 0
+    while document.paragraphs:
+        last = document.paragraphs[-1]
+        if last.text.strip():
+            break
+        parent = last._element.getparent()
+        if parent is None:
+            break
+        parent.remove(last._element)
+        removed += 1
+
+    if removed:
+        document.save(str(docx_path))
+
+
+def _normalize_section_leading_spacing(docx_path: Path) -> None:
+    """Reduce spacing drift after section headers for DOCX->PDF conversion."""
+    try:
+        document = Document(str(docx_path))
+    except Exception:
+        return
+
+    changed = False
+    paragraphs = document.paragraphs
+    section_titles = {
+        "summary",
+        "skills",
+        "experience",
+        "projects",
+        "education",
+        "certifications",
+    }
+
+    for idx, paragraph in enumerate(paragraphs):
+        title = paragraph.text.strip().lower().rstrip(":")
+        if title not in section_titles:
+            continue
+
+        # Remove blank paragraph runs directly after a section heading.
+        probe = idx + 1
+        while probe < len(paragraphs) and not paragraphs[probe].text.strip():
+            blank_para = paragraphs[probe]
+            parent = blank_para._element.getparent()
+            if parent is None:
+                break
+            parent.remove(blank_para._element)
+            changed = True
+            probe += 1
+
+        # Ensure first visible content line starts without extra leading space.
+        if probe < len(paragraphs) and paragraphs[probe].text.strip():
+            fmt = paragraphs[probe].paragraph_format
+            if fmt.space_before is None or float(fmt.space_before.pt) > 0:
+                fmt.space_before = Pt(0)
+                changed = True
+
+    if changed:
+        document.save(str(docx_path))
 
 
 def _to_template_context(value: Any) -> Any:

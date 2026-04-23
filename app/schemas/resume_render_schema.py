@@ -10,4 +10,4 @@ class ResumeRenderDocxRequest(BaseModel):
 
 
 class ResumeRenderPdfRequest(ResumeRenderDocxRequest):
-    """Backward-compatible alias for older imports during DOCX-only phase."""
+    file_name: str = "resume.pdf"
