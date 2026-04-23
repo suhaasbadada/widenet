@@ -5,6 +5,7 @@ from app.core.security import create_access_token, ensure_jwt_configured, hash_p
 from app.models.auth_credential import AuthCredential
 from app.models.user import User
 from app.schemas.auth import AuthLoginRequest, AuthRegisterRequest
+from app.services import user_service
 
 
 class AuthConflictError(ValueError):
@@ -18,13 +19,16 @@ class InvalidCredentialsError(ValueError):
 def register_user(db: Session, payload: AuthRegisterRequest) -> tuple[User, str]:
     """Create a user account with password-based credentials and return a JWT."""
     ensure_jwt_configured()
-    normalized_email = str(payload.email).strip().lower()
+    normalized_email = user_service._normalize_email(str(payload.email))
+    default_role = user_service.get_default_role_for_email(normalized_email)
 
     user = db.scalar(select(User).where(func.lower(User.email) == normalized_email))
     if user is None:
-        user = User(email=normalized_email)
+        user = User(email=normalized_email, role=default_role.value)
         db.add(user)
         db.flush()
+    elif not getattr(user, "role", None):
+        user.role = default_role.value
 
     credential = db.get(AuthCredential, user.id)
     if credential is not None:
@@ -38,14 +42,14 @@ def register_user(db: Session, payload: AuthRegisterRequest) -> tuple[User, str]
     db.commit()
     db.refresh(user)
 
-    access_token = create_access_token(user_id=str(user.id), email=user.email)
+    access_token = create_access_token(user_id=str(user.id), email=user.email, role=user.role)
     return user, access_token
 
 
 def login_user(db: Session, payload: AuthLoginRequest) -> tuple[User, str]:
     """Authenticate a user by email and password and return a JWT."""
     ensure_jwt_configured()
-    normalized_email = str(payload.email).strip().lower()
+    normalized_email = user_service._normalize_email(str(payload.email))
 
     user = db.scalar(select(User).where(func.lower(User.email) == normalized_email))
     if user is None:
@@ -55,5 +59,10 @@ def login_user(db: Session, payload: AuthLoginRequest) -> tuple[User, str]:
     if credential is None or not verify_password(payload.password, credential.password_hash):
         raise InvalidCredentialsError("Invalid email or password.")
 
-    access_token = create_access_token(user_id=str(user.id), email=user.email)
+    if not getattr(user, "role", None):
+        user.role = user_service.get_default_role_for_email(user.email).value
+        db.commit()
+        db.refresh(user)
+
+    access_token = create_access_token(user_id=str(user.id), email=user.email, role=user.role)
     return user, access_token

@@ -8,6 +8,8 @@ from typing import Any
 import jwt
 from dotenv import load_dotenv
 
+from app.models.user import UserRole
+
 load_dotenv()
 
 _PASSWORD_HASH_NAME = "pbkdf2_sha256"
@@ -63,13 +65,15 @@ def verify_password(password: str, encoded_password: str) -> bool:
     return hmac.compare_digest(candidate_digest, stored_digest)
 
 
-def create_access_token(user_id: str, email: str) -> str:
+def create_access_token(user_id: str, email: str, role: str | UserRole) -> str:
     """Issue a signed JWT access token for the authenticated user."""
     ensure_jwt_configured()
     expires_at = datetime.now(UTC) + timedelta(minutes=_JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+    normalized_role = UserRole(str(role)).value if str(role) in {r.value for r in UserRole} else UserRole.USER.value
     payload = {
         "sub": user_id,
         "email": email,
+        "role": normalized_role,
         "type": "access",
         "exp": expires_at,
     }
@@ -95,5 +99,10 @@ def decode_access_token(token: str) -> dict[str, Any]:
 
     if payload.get("type") != "access" or not payload.get("sub"):
         raise InvalidTokenError("Invalid or expired access token.")
+
+    role = str(payload.get("role") or UserRole.USER.value)
+    if role not in {item.value for item in UserRole}:
+        role = UserRole.USER.value
+    payload["role"] = role
 
     return payload

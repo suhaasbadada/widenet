@@ -15,7 +15,7 @@ from app.schemas.outreach import (
 from app.schemas.profile import ProfileCreate, ProfileResponse, ProfileUpdate
 from app.schemas.resume_render_schema import ResumeRenderDocxRequest, ResumeRenderPdfRequest
 from app.schemas.resume_schema import ResumeGenerateRequest, ResumeGenerateResponse
-from app.schemas.user import UserCreate, UserResponse, UserUpdate
+from app.schemas.user import UserCreate, UserResponse, UserSelfUpdate, UserUpdate
 
 __all__ = [
     "UserCreate",
@@ -49,4 +49,5 @@ __all__ = [
     "ResumeRenderPdfRequest",
     "GeneratedContentCreate",
     "GeneratedContentResponse",
+    "UserSelfUpdate",
 ]
