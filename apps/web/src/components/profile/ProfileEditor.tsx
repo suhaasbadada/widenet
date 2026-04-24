@@ -347,86 +347,87 @@ export function ProfileEditor({ profileData, setProfileData, onSave, saving, sub
                       updateStructured("experience", newExp);
                     }} className={inputClass} placeholder="e.g. New York, NY" />
                   </div>
-                  <div className="flex flex-col" />
                   
-                  <div className="flex flex-col">
-                    <label className={labelClass}>From</label>
-                    <MonthPicker 
-                      value={exp.from || ""} 
-                      onChange={(val) => {
-                        const newExp = [...(profileData.structured_profile?.experience || [])];
-                        newExp[index].from = val;
-                        newExp[index].duration = `${val} - ${exp.to || getTo(exp.duration)}`;
-                        updateStructured("experience", newExp);
-                      }}
-                    />
-                  </div>
-                  <div className="flex flex-col">
-                    <div className="flex justify-between items-center mb-1">
-                      <label className={labelClass.replace("mb-1", "")}>To</label>
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          const newExp = [...(profileData.structured_profile?.experience || [])];
-                          newExp[index].to = "Present";
-                          newExp[index].duration = `${exp.from || getFrom(exp.duration)} - Present`;
-                          updateStructured("experience", newExp);
-                        }}
-                        className="text-[10px] font-bold text-[var(--accent)] hover:underline"
-                      >
-                        Set to Present
-                      </button>
-                    </div>
-                    {exp.to?.toLowerCase() === "present" ? (
-                      <div className="relative">
-                        <input 
-                          type="text" 
-                          value="Present" 
-                          readOnly
-                          className={`${inputClass} cursor-default`} 
-                        />
-                        <button 
-                          type="button"
-                          onClick={() => {
-                            const newExp = [...(profileData.structured_profile?.experience || [])];
-                            newExp[index].to = "01/" + new Date().getFullYear();
-                            updateStructured("experience", newExp);
-                          }}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-600 hover:bg-slate-200"
-                        >
-                          Change
-                        </button>
-                      </div>
-                    ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col">
+                      <label className={labelClass}>From</label>
                       <MonthPicker 
-                        value={exp.to || ""} 
+                        value={exp.from || ""} 
                         onChange={(val) => {
                           const newExp = [...(profileData.structured_profile?.experience || [])];
-                          newExp[index].to = val;
-                          newExp[index].duration = `${exp.from || getFrom(exp.duration)} - ${val}`;
+                          newExp[index].from = val;
+                          newExp[index].duration = `${val} - ${exp.to || getTo(exp.duration)}`;
                           updateStructured("experience", newExp);
                         }}
                       />
-                    )}
+                    </div>
+                    <div className="flex flex-col">
+                      <div className="flex justify-between items-center mb-1">
+                        <label className={labelClass.replace("mb-1", "")}>To</label>
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            const newExp = [...(profileData.structured_profile?.experience || [])];
+                            newExp[index].to = "Present";
+                            newExp[index].duration = `${exp.from || getFrom(exp.duration)} - Present`;
+                            updateStructured("experience", newExp);
+                          }}
+                          className="text-[10px] font-bold text-[var(--accent)] hover:underline"
+                        >
+                          Present
+                        </button>
+                      </div>
+                      {exp.to?.toLowerCase() === "present" ? (
+                        <div className="relative">
+                          <input 
+                            type="text" 
+                            value="Present" 
+                            readOnly
+                            className={`${inputClass} cursor-default`} 
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const newExp = [...(profileData.structured_profile?.experience || [])];
+                              newExp[index].to = "01/" + new Date().getFullYear();
+                              updateStructured("experience", newExp);
+                            }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-600 hover:bg-slate-200"
+                          >
+                            Change
+                          </button>
+                        </div>
+                      ) : (
+                        <MonthPicker 
+                          value={exp.to || ""} 
+                          onChange={(val) => {
+                            const newExp = [...(profileData.structured_profile?.experience || [])];
+                            newExp[index].to = val;
+                            newExp[index].duration = `${exp.from || getFrom(exp.duration)} - ${val}`;
+                            updateStructured("experience", newExp);
+                          }}
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 <div className="flex flex-col gap-3">
-                  <label className={labelClass}>Bullet Points</label>
+                  <label className={labelClass}>Key Achievements</label>
                   {(exp.points || []).map((pt, pIdx) => (
                     <div key={pIdx} className="relative group/bullet">
                       <textarea
                         value={pt}
                         onChange={(e) => handleListStringChange("experience", index, "points", pIdx, e.target.value)}
-                        className={`${inputClass} font-serif min-h-[60px] leading-relaxed pr-10`}
+                        className={`${inputClass} min-h-[60px] leading-relaxed pr-10`}
                       />
-                      <button type="button" onClick={() => removePoint("experience", index, "points", pIdx)} className="absolute top-2 right-2 p-1.5 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover/bullet:opacity-100 bg-white rounded-lg shadow-sm border border-slate-100" title="Remove Bullet">
+                      <button type="button" onClick={() => removePoint("experience", index, "points", pIdx)} className="absolute top-2 right-2 p-1.5 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover/bullet:opacity-100 bg-white rounded-lg shadow-sm border border-slate-100" title="Remove Achievement">
                         <TrashIcon />
                       </button>
                     </div>
                   ))}
                   <button type="button" onClick={() => addPoint("experience", index)} className="flex items-center gap-1 text-[13px] font-semibold text-slate-500 hover:text-[var(--accent)] self-start mt-1 px-2 py-1 transition-colors">
-                    <PlusIcon /> Add Bullet
+                    <PlusIcon /> Add Achievement
                   </button>
                 </div>
               </div>
@@ -592,21 +593,21 @@ export function ProfileEditor({ profileData, setProfileData, onSave, saving, sub
                   </div>
                 </div>
                 <div className="flex flex-col gap-3 mt-2">
-                  <label className={labelClass}>Bullet Points</label>
+                  <label className={labelClass}>Key Achievements</label>
                   {(proj.points || []).map((pt, pIdx) => (
                     <div key={pIdx} className="relative group/bullet">
                       <textarea
                         value={pt}
                         onChange={(e) => handleListStringChange("projects", index, "points", pIdx, e.target.value)}
-                        className={`${inputClass} font-serif min-h-[60px] leading-relaxed pr-10`}
+                        className={`${inputClass} min-h-[60px] leading-relaxed pr-10`}
                       />
-                      <button type="button" onClick={() => removePoint("projects", index, "points", pIdx)} className="absolute top-2 right-2 p-1.5 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover/bullet:opacity-100 bg-white rounded-lg shadow-sm border border-slate-100" title="Remove Bullet">
+                      <button type="button" onClick={() => removePoint("projects", index, "points", pIdx)} className="absolute top-2 right-2 p-1.5 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover/bullet:opacity-100 bg-white rounded-lg shadow-sm border border-slate-100" title="Remove Achievement">
                         <TrashIcon />
                       </button>
                     </div>
                   ))}
                   <button type="button" onClick={() => addPoint("projects", index)} className="flex items-center gap-1 text-[13px] font-semibold text-slate-500 hover:text-[var(--accent)] self-start mt-1 px-2 py-1 transition-colors">
-                    <PlusIcon /> Add Bullet
+                    <PlusIcon /> Add Achievement
                   </button>
                 </div>
               </div>
