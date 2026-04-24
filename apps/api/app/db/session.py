@@ -34,6 +34,7 @@ def initialize_database() -> None:
 
     Base.metadata.create_all(bind=engine)
     _ensure_user_role_column()
+    _ensure_profile_render_columns()
     _sync_bootstrap_admin_roles()
 
 
@@ -65,6 +66,21 @@ def _sync_bootstrap_admin_roles() -> None:
         user_service.sync_configured_admin_roles(db)
     finally:
         db.close()
+
+
+def _ensure_profile_render_columns() -> None:
+    inspector = inspect(engine)
+    if "profiles" not in inspector.get_table_names():
+        return
+
+    column_names = {column["name"] for column in inspector.get_columns("profiles")}
+    with engine.begin() as connection:
+        if "name" not in column_names:
+            connection.execute(text("ALTER TABLE profiles ADD COLUMN name VARCHAR"))
+        if "contact_number" not in column_names:
+            connection.execute(text("ALTER TABLE profiles ADD COLUMN contact_number VARCHAR"))
+        if "links" not in column_names:
+            connection.execute(text("ALTER TABLE profiles ADD COLUMN links JSONB"))
 
 
 def get_db() -> Generator[Session, None, None]:

@@ -78,6 +78,9 @@ You are a resume parser. Extract structured information from the provided resume
 
 Return ONLY a JSON object with at least these top-level fields:
 {
+    "name": "<candidate full name>",
+    "contact_number": "<primary phone number>",
+    "links": ["<email/linkedin/github/portfolio URLs or email strings>"],
   "headline": "<one-line professional title, e.g. Senior Backend Engineer>",
   "summary": "<2-3 sentence professional summary>",
   "skills": {
@@ -91,17 +94,41 @@ Return ONLY a JSON object with at least these top-level fields:
       "location": "<optional>",
       "points": ["bullet 1", "bullet 2"]
     }
+    ],
+    "projects": [
+        {
+            "name": "<project name>",
+            "description": "<optional short summary>",
+            "technologies": ["tech1", "tech2"],
+            "points": ["bullet 1", "bullet 2"]
+        }
+    ],
+    "education": [
+        {
+            "institution": "<school or university>",
+            "degree": "<degree>",
+            "field": "<major or specialization>",
+            "location": "<optional>",
+            "gpa": "<GPA if present>",
+            "from": "<start date if present>",
+            "to": "<end date if present>"
+        }
   ]
 }
 
 Rules:
 - Do not invent information not present in the resume.
+- Extract email addresses and public profile URLs into links.
+- Preserve the candidate name exactly as written near the top of the resume.
+- Extract the best phone number into contact_number.
 - Use plain professional language. No emojis or symbols.
 - Preserve skill subcategories from the resume whenever possible (frontend, backend, languages, databases, cloud, tools, frameworks, etc.).
 - Do NOT collapse all skills into one flat list.
 - experience must be ordered most-recent first.
 - Preserve all meaningful bullet points for each experience entry in points[]; do not keep only one point.
 - If the resume has additional sections (projects, education, certifications, awards, publications, volunteering), include them with structured fields.
+- For education, extract GPA and date range whenever present instead of leaving them out.
+- For public links without a scheme, keep the visible value but preserve the full domain/path.
 """.strip()
 
 
@@ -153,20 +180,79 @@ def _normalize_experience(experience: Any) -> list[dict[str, Any]]:
     return normalized_items
 
 
+def _normalize_projects(projects: Any) -> list[dict[str, Any]]:
+    if not isinstance(projects, list):
+        return []
+
+    normalized_items: list[dict[str, Any]] = []
+    for item in projects:
+        if not isinstance(item, dict):
+            continue
+        normalized_items.append(
+            {
+                "name": str(item.get("name", "")).strip() or str(item.get("title", "")).strip(),
+                "description": str(item.get("description", "")).strip() or str(item.get("summary", "")).strip(),
+                "technologies": _to_string_list(item.get("technologies") or item.get("tech") or item.get("stack")),
+                "points": _to_string_list(item.get("points") or item.get("bullets") or item.get("impact")),
+            }
+        )
+    return normalized_items
+
+
+def _normalize_education(education: Any) -> list[dict[str, Any]]:
+    if not isinstance(education, list):
+        return []
+
+    normalized_items: list[dict[str, Any]] = []
+    for item in education:
+        if not isinstance(item, dict):
+            continue
+        normalized_items.append(
+            {
+                "institution": str(item.get("institution", "")).strip() or str(item.get("school", "")).strip() or str(item.get("university", "")).strip(),
+                "degree": str(item.get("degree", "")).strip(),
+                "field": str(item.get("field", "")).strip() or str(item.get("major", "")).strip(),
+                "gpa": str(item.get("gpa", "")).strip() or str(item.get("cgpa", "")).strip(),
+                "from": str(item.get("from", "")).strip() or str(item.get("start", "")).strip(),
+                "to": str(item.get("to", "")).strip() or str(item.get("end", "")).strip() or str(item.get("year", "")).strip(),
+                "location": str(item.get("location", "")).strip(),
+            }
+        )
+
+        if not normalized_items[-1]["from"] or not normalized_items[-1]["to"]:
+            duration = str(item.get("duration", "")).strip() or str(item.get("date_range", "")).strip()
+            if duration:
+                parts = [part.strip() for part in duration.replace("—", "-").replace("–", "-").split("-") if part.strip()]
+                if len(parts) >= 2:
+                    normalized_items[-1]["from"] = normalized_items[-1]["from"] or parts[0]
+                    normalized_items[-1]["to"] = normalized_items[-1]["to"] or parts[1]
+    return normalized_items
+
+
 def _normalize_parsed_resume(parsed: Any) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         return {
+            "name": "",
+            "contact_number": "",
+            "links": [],
             "headline": "",
             "summary": "",
             "skills": {"general": []},
             "experience": [],
+            "projects": [],
+            "education": [],
         }
 
     normalized: dict[str, Any] = {
+        "name": str(parsed.get("name", "")).strip() or str(parsed.get("full_name", "")).strip(),
+        "contact_number": str(parsed.get("contact_number", "")).strip() or str(parsed.get("phone", "")).strip(),
+        "links": _to_string_list(parsed.get("links", [])),
         "headline": str(parsed.get("headline", "")).strip(),
         "summary": str(parsed.get("summary", "")).strip(),
         "skills": _normalize_skills(parsed.get("skills", {})),
         "experience": _normalize_experience(parsed.get("experience", [])),
+        "projects": _normalize_projects(parsed.get("projects", [])),
+        "education": _normalize_education(parsed.get("education", [])),
     }
 
     # Preserve additional top-level sections from the resume without flattening.

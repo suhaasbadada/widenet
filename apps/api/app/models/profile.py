@@ -3,7 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
@@ -23,6 +23,14 @@ class Profile(Base):
     raw_resume: Mapped[str | None] = mapped_column(Text, nullable=True)
     # AI-parsed resume fields stored as structured JSONB
     structured_profile: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    name: Mapped[str | None] = mapped_column(String, nullable=True)
+    contact_number: Mapped[str | None] = mapped_column(String, nullable=True)
+    links: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True)
+    profile_links: Mapped[list["ProfileLink"]] = relationship(
+        "ProfileLink",
+        back_populates="profile",
+        cascade="all, delete-orphan",
+    )
     headline: Mapped[str | None] = mapped_column(String, nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

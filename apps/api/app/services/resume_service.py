@@ -1,15 +1,24 @@
 import uuid
 import json
 import logging
+import re
+import tempfile
+from dataclasses import dataclass
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.profile import Profile
-from app.schemas.resume_schema import ExistingResumeResponse, ResumeGenerateResponse
+from app.schemas.resume_schema import (
+    ExistingResumeResponse,
+    ResumeLink,
+    ResumeGenerateResponse,
+    ResumeProfileOverrides,
+    ResumeRenderPayload,
+)
 from app.models.user import User
-from app.services import ai_service, storage_service
+from app.services import ai_service, profile_link_service, resume_render_service, storage_service
 from app.utils.file_parser import extract_text
 
 
@@ -27,6 +36,14 @@ class ResumeGenerationValidationError(ValueError):
 
 class ResumeGenerationFailedError(RuntimeError):
     """Raised when resume generation cannot produce valid output after retries."""
+
+
+@dataclass
+class GeneratedResumeFileArtifact:
+    output_path: str
+    media_type: str
+    download_name: str
+    temp_dir: tempfile.TemporaryDirectory[str]
 
 
 _logger = logging.getLogger(__name__)
@@ -92,6 +109,248 @@ def _validate_input_resume(base_resume: Any) -> dict[str, Any]:
     if not base_resume:
         raise ResumeGenerationValidationError("Field 'base_resume' cannot be empty.")
     return base_resume
+
+
+def _extract_links_from_profile(base_resume: dict[str, Any]) -> list[str]:
+    raw_links = base_resume.get("links")
+    if isinstance(raw_links, list):
+        return [profile_link_service.normalize_link_url(str(link)) for link in raw_links if str(link).strip()]
+
+    if isinstance(raw_links, dict):
+        collected: list[str] = []
+        for value in raw_links.values():
+            text = profile_link_service.normalize_link_url(str(value))
+            if text:
+                collected.append(text)
+        return collected
+
+    contact = base_resume.get("contact")
+    if isinstance(contact, dict):
+        collected = []
+        for key in ("linkedin", "github", "portfolio", "website"):
+            value = profile_link_service.normalize_link_url(str(contact.get(key, "")))
+            if value:
+                collected.append(value)
+        return collected
+
+    return []
+
+
+def _extract_name_from_raw_resume(raw_resume: str) -> str:
+    for line in raw_resume.splitlines():
+        candidate = line.strip()
+        if not candidate:
+            continue
+        if len(candidate) > 80:
+            continue
+        if any(token in candidate.lower() for token in ("summary", "experience", "skills", "education")):
+            continue
+        if "@" in candidate:
+            continue
+        if sum(char.isdigit() for char in candidate) > 2:
+            continue
+        return candidate
+    return ""
+
+
+def _extract_contact_from_raw_resume(raw_resume: str) -> str:
+    phone_pattern = re.compile(r"(?:\+?\d[\d\s().-]{7,}\d)")
+    match = phone_pattern.search(raw_resume)
+    return match.group(0).strip() if match else ""
+
+
+def _extract_links_from_raw_resume(raw_resume: str) -> list[str]:
+    links: list[str] = []
+    seen: set[str] = set()
+
+    email_pattern = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE)
+    url_pattern = re.compile(r'https?://[^\s|)"]+')
+    bare_url_pattern = re.compile(
+        r'(?<!@)\b(?:www\.)?[A-Za-z0-9.-]+\.(?:com|org|net|dev|io|ai|me|co|edu)(?:/[^\s|)"]*)?',
+        re.IGNORECASE,
+    )
+
+    for match in email_pattern.findall(raw_resume):
+        normalized = profile_link_service.normalize_link_url(match)
+        key = normalized.lower()
+        if key not in seen:
+            seen.add(key)
+            links.append(normalized)
+
+    for match in url_pattern.findall(raw_resume):
+        normalized = profile_link_service.normalize_link_url(match)
+        key = normalized.lower()
+        if key not in seen:
+            seen.add(key)
+            links.append(normalized)
+
+    for match in bare_url_pattern.findall(raw_resume):
+        normalized = profile_link_service.normalize_link_url(match)
+        key = normalized.lower()
+        if key not in seen:
+            seen.add(key)
+            links.append(normalized)
+
+    return links
+
+
+def _education_section_lines(raw_resume: str) -> list[str]:
+    lines = [line.strip() for line in raw_resume.splitlines()]
+    start_index: int | None = None
+    for index, line in enumerate(lines):
+        if line.lower() == "education":
+            start_index = index + 1
+            break
+
+    if start_index is None:
+        return []
+
+    collected: list[str] = []
+    next_section_tokens = {
+        "experience",
+        "projects",
+        "skills",
+        "summary",
+        "certifications",
+        "awards",
+        "publications",
+    }
+    for line in lines[start_index:]:
+        if not line:
+            continue
+        if line.lower() in next_section_tokens:
+            break
+        collected.append(line)
+    return collected
+
+
+def _extract_gpa_value(text: str) -> str:
+    match = re.search(r"\b(?:GPA|CGPA)\s*:?\s*([^|]+)", text, re.IGNORECASE)
+    return match.group(1).strip() if match else ""
+
+
+def _extract_date_range(text: str) -> tuple[str, str]:
+    match = re.search(r"(\d{2}/\d{4})\s*[–-]\s*(Present|\d{2}/\d{4})", text)
+    if not match:
+        return "", ""
+    return match.group(1).strip(), match.group(2).strip()
+
+
+def _enrich_education_from_raw_resume(education: Any, raw_resume: str) -> list[dict[str, Any]]:
+    if not isinstance(education, list):
+        return []
+
+    section_lines = _education_section_lines(raw_resume)
+    if not section_lines:
+        return [item for item in education if isinstance(item, dict)]
+
+    enriched: list[dict[str, Any]] = []
+    for item in education:
+        if not isinstance(item, dict):
+            continue
+
+        updated = dict(item)
+        lookup_tokens = [
+            str(updated.get("institution") or "").strip(),
+            str(updated.get("degree") or "").strip(),
+        ]
+        matching_index: int | None = None
+        for index, line in enumerate(section_lines):
+            lowered_line = line.lower()
+            if any(token and token.lower() in lowered_line for token in lookup_tokens):
+                matching_index = index
+                break
+
+        if matching_index is None:
+            enriched.append(updated)
+            continue
+
+        context = " | ".join(section_lines[matching_index:matching_index + 3])
+        institution_line = section_lines[matching_index]
+        institution = str(updated.get("institution") or "").strip()
+        if institution and institution_line.startswith(institution):
+            location = institution_line[len(institution):].strip(" ,|")
+            if location and not str(updated.get("location") or "").strip():
+                updated["location"] = location
+
+        if not str(updated.get("gpa") or "").strip():
+            updated["gpa"] = _extract_gpa_value(context)
+
+        from_value, to_value = _extract_date_range(context)
+        if from_value and not str(updated.get("from") or "").strip():
+            updated["from"] = from_value
+        if to_value and not str(updated.get("to") or "").strip():
+            updated["to"] = to_value
+
+        enriched.append(updated)
+
+    return enriched
+
+
+def _extract_name_from_profile(base_resume: dict[str, Any]) -> str:
+    return (
+        str(base_resume.get("name") or "").strip()
+        or str(base_resume.get("full_name") or "").strip()
+        or str(base_resume.get("candidate_name") or "").strip()
+    )
+
+
+def _extract_contact_from_profile(base_resume: dict[str, Any]) -> str:
+    return (
+        str(base_resume.get("contact_number") or "").strip()
+        or str(base_resume.get("phone") or "").strip()
+    )
+
+
+def _normalized_output_file_name(output_format: str, file_name: str | None) -> str:
+    extension = ".docx" if output_format == "docx" else ".pdf"
+    default_name = f"resume{extension}"
+    normalized = (file_name or default_name).strip() or default_name
+    if not normalized.lower().endswith(extension):
+        normalized = f"{normalized}{extension}"
+    return normalized
+
+
+def _ensure_render_required_shape(
+    base_resume: dict[str, Any],
+    profile_overrides: ResumeProfileOverrides | None,
+) -> dict[str, Any]:
+    profile_overrides = profile_overrides or ResumeProfileOverrides()
+
+    fallback_name = _extract_name_from_profile(base_resume)
+    fallback_contact_number = _extract_contact_from_profile(base_resume)
+
+    normalized = dict(base_resume)
+    normalized["name"] = (profile_overrides.name or fallback_name).strip()
+    normalized["contact_number"] = (
+        profile_overrides.contact_number or fallback_contact_number
+    ).strip()
+    normalized["links"] = profile_overrides.links or _extract_links_from_profile(base_resume)
+
+    base_summary = str(base_resume.get("summary") or "").strip()
+    normalized["summary"] = (profile_overrides.summary or base_summary).strip()
+
+    if profile_overrides.skills is not None:
+        normalized["skills"] = profile_overrides.skills
+    else:
+        normalized["skills"] = base_resume.get("skills") or {}
+
+    normalized["experience"] = (
+        profile_overrides.experience
+        if profile_overrides.experience is not None
+        else (base_resume.get("experience") or [])
+    )
+    normalized["projects"] = (
+        profile_overrides.projects
+        if profile_overrides.projects is not None
+        else (base_resume.get("projects") or [])
+    )
+    normalized["education"] = (
+        profile_overrides.education
+        if profile_overrides.education is not None
+        else (base_resume.get("education") or [])
+    )
+    return normalized
 
 
 def _validate_exact_schema(base: Any, candidate: Any, path: str = "root") -> None:
@@ -238,6 +497,9 @@ def _is_effectively_unchanged(base_resume: dict[str, Any], candidate_resume: dic
 def generate_tailored_resume(
     job_description: str,
     base_resume: dict[str, Any],
+    template_path: str = "app/resume-templates/Template1.docx",
+    docx_file_name: str = "resume.docx",
+    pdf_file_name: str = "resume.pdf",
     max_retries: int = 3,
 ) -> ResumeGenerateResponse:
     """Generate a job-tailored resume while preserving the exact base resume schema."""
@@ -280,7 +542,20 @@ def generate_tailored_resume(
                 )
                 continue
 
-            return ResumeGenerateResponse(tailored_resume=normalized)
+            return ResumeGenerateResponse(
+                tailored_resume=normalized,
+                resume_json=normalized,
+                render_docx_payload=ResumeRenderPayload(
+                    resume_json=normalized,
+                    template_path=template_path,
+                    file_name=docx_file_name,
+                ),
+                render_pdf_payload=ResumeRenderPayload(
+                    resume_json=normalized,
+                    template_path=template_path,
+                    file_name=pdf_file_name,
+                ),
+            )
         except (json.JSONDecodeError, ResumeGenerationValidationError, TypeError, ValueError) as exc:
             last_error = exc
             retry_reason = "invalid"
@@ -305,6 +580,10 @@ def generate_tailored_resume_from_registered_profile(
     db: Session,
     user_id: uuid.UUID,
     job_description: str,
+    profile_overrides: ResumeProfileOverrides | None = None,
+    template_path: str = "app/resume-templates/Template1.docx",
+    docx_file_name: str = "resume.docx",
+    pdf_file_name: str = "resume.pdf",
     max_retries: int = 3,
 ) -> ResumeGenerateResponse:
     """Generate a tailored resume from the caller's latest stored profile JSON."""
@@ -324,11 +603,85 @@ def generate_tailored_resume_from_registered_profile(
         "skills": [],
         "experience": [],
     }
+    if profile.name and "name" not in base_resume:
+        base_resume["name"] = profile.name
+    if profile.contact_number and "contact_number" not in base_resume:
+        base_resume["contact_number"] = profile.contact_number
+    link_urls = profile_link_service.get_profile_link_urls(db=db, profile_id=profile.id)
+    if not link_urls and profile.links:
+        normalized_links = profile_link_service.normalize_links_payload(profile.links)
+        profile_link_service.replace_profile_links(
+            db=db,
+            profile_id=profile.id,
+            links=normalized_links,
+        )
+        db.commit()
+        link_urls = profile_link_service.get_profile_link_urls(db=db, profile_id=profile.id)
+    if link_urls and "links" not in base_resume:
+        base_resume["links"] = link_urls
+    elif profile.links and "links" not in base_resume:
+        base_resume["links"] = profile.links
+    render_ready_resume = _ensure_render_required_shape(base_resume, profile_overrides)
 
     return generate_tailored_resume(
         job_description=job_description,
-        base_resume=base_resume,
+        base_resume=render_ready_resume,
+        template_path=template_path,
+        docx_file_name=docx_file_name,
+        pdf_file_name=pdf_file_name,
         max_retries=max_retries,
+    )
+
+
+def generate_and_render_resume_from_registered_profile(
+    db: Session,
+    user_id: uuid.UUID,
+    job_description: str,
+    output_format: str,
+    file_name: str | None = None,
+    profile_overrides: ResumeProfileOverrides | None = None,
+    template_path: str = "app/resume-templates/Template1.docx",
+    docx_file_name: str = "resume.docx",
+    pdf_file_name: str = "resume.pdf",
+    max_retries: int = 3,
+) -> GeneratedResumeFileArtifact:
+    """Generate a tailored resume and immediately render it as DOCX/PDF."""
+    generation_response = generate_tailored_resume_from_registered_profile(
+        db=db,
+        user_id=user_id,
+        job_description=job_description,
+        profile_overrides=profile_overrides,
+        template_path=template_path,
+        docx_file_name=docx_file_name,
+        pdf_file_name=pdf_file_name,
+        max_retries=max_retries,
+    )
+
+    if output_format == "docx":
+        resolved_name = _normalized_output_file_name("docx", file_name or docx_file_name)
+        artifact = resume_render_service.render_resume_to_docx(
+            resume_json=generation_response.resume_json,
+            template_path=template_path,
+            file_name=resolved_name,
+        )
+        return GeneratedResumeFileArtifact(
+            output_path=artifact.docx_path,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            download_name=resolved_name,
+            temp_dir=artifact.temp_dir,
+        )
+
+    resolved_name = _normalized_output_file_name("pdf", file_name or pdf_file_name)
+    artifact = resume_render_service.render_resume_to_pdf(
+        resume_json=generation_response.resume_json,
+        template_path=template_path,
+        file_name=resolved_name,
+    )
+    return GeneratedResumeFileArtifact(
+        output_path=artifact.pdf_path,
+        media_type="application/pdf",
+        download_name=resolved_name,
+        temp_dir=artifact.temp_dir,
     )
 
 
@@ -344,6 +697,19 @@ def get_existing_resume_for_user(db: Session, user_id: uuid.UUID) -> ExistingRes
             "No profile found for this user. Upload a resume before fetching it."
         )
 
+    typed_links = profile_link_service.get_profile_links(db=db, profile_id=profile.id)
+    if not typed_links and profile.links:
+        normalized_links = profile_link_service.normalize_links_payload(profile.links)
+        profile_link_service.replace_profile_links(
+            db=db,
+            profile_id=profile.id,
+            links=normalized_links,
+        )
+        db.commit()
+        typed_links = profile_link_service.get_profile_links(db=db, profile_id=profile.id)
+    link_urls = [link.url for link in typed_links]
+    links = link_urls or profile.links
+
     return ExistingResumeResponse(
         resume_url=profile.resume_url,
         raw_resume=profile.raw_resume,
@@ -353,6 +719,15 @@ def get_existing_resume_for_user(db: Session, user_id: uuid.UUID) -> ExistingRes
             "skills": [],
             "experience": [],
         },
+        name=profile.name,
+        contact_number=profile.contact_number,
+        links=links,
+        profile_links=[
+            ResumeLink(type=link.link_type, url=link.url, is_primary=link.is_primary)
+            for link in typed_links
+        ]
+        if typed_links
+        else None,
         headline=profile.headline,
         summary=profile.summary,
     )
@@ -390,17 +765,44 @@ def process_resume_upload(
     # AI parse returns: headline, summary, skills, experience
     parsed = ai_service.parse_resume(raw_resume=raw_resume)
 
+    parsed_name = _extract_name_from_profile(parsed) or _extract_name_from_raw_resume(raw_resume)
+    parsed_contact = _extract_contact_from_profile(parsed) or _extract_contact_from_raw_resume(raw_resume)
+    parsed_links = _extract_links_from_profile(parsed) or _extract_links_from_raw_resume(raw_resume)
+
+    if parsed_name and not parsed.get("name"):
+        parsed["name"] = parsed_name
+    if parsed_contact and not parsed.get("contact_number"):
+        parsed["contact_number"] = parsed_contact
+    if parsed_links and not parsed.get("links"):
+        parsed["links"] = parsed_links
+    parsed["links"] = _extract_links_from_profile(parsed) or parsed_links
+    parsed["education"] = _enrich_education_from_raw_resume(parsed.get("education", []), raw_resume)
+
     profile = Profile(
         user_id=user_id,
         resume_url=resume_url,
         raw_resume=raw_resume,
         structured_profile=parsed,
+        name=parsed_name or None,
+        contact_number=parsed_contact or None,
+        links=parsed.get("links") or parsed_links,
         headline=parsed.get("headline"),
         summary=parsed.get("summary"),
     )
     db.add(profile)
     db.commit()
     db.refresh(profile)
+
+    normalized_links = profile_link_service.normalize_links_payload(profile.links or [])
+    profile_link_service.replace_profile_links(
+        db=db,
+        profile_id=profile.id,
+        links=normalized_links,
+    )
+    profile.links = profile_link_service.normalize_links_for_legacy_column(normalized_links)
+    db.commit()
+    db.refresh(profile)
+    profile.profile_links = profile_link_service.get_profile_links(db=db, profile_id=profile.id)
 
     pruned = _prune_old_profiles(db=db, user_id=user_id, max_profiles=5)
     if pruned:

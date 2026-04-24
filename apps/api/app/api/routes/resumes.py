@@ -6,6 +6,7 @@ from app.core.authz import AuthenticatedUser, get_current_user
 from app.db.session import get_db
 from app.schemas.resume_schema import (
     ExistingResumeResponse,
+    ResumeGenerateFileRequest,
     ResumeGenerateRequest,
     ResumeGenerateResponse,
 )
@@ -42,6 +43,10 @@ def generate_tailored_resume(
             db=db,
             user_id=current_user.user_id,
             job_description=payload.job_description,
+            profile_overrides=payload.profile_overrides,
+            template_path=payload.template_path,
+            docx_file_name=payload.docx_file_name,
+            pdf_file_name=payload.pdf_file_name,
         )
     except resume_service.ProfileNotFoundError as exc:
         return JSONResponse(status_code=404, content={"success": False, "error": str(exc)})
@@ -51,6 +56,46 @@ def generate_tailored_resume(
         return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
 
     return {"success": True, "data": response.model_dump()}
+
+
+@router.post("/generate-file", response_model=None)
+@router.post("/render-file", response_model=None)
+def generate_and_render_resume_file(
+    payload: ResumeGenerateFileRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    """Generate and render a tailored resume directly to DOCX/PDF in one call.
+
+    The default output format is PDF when omitted in request payload.
+    """
+    try:
+        artifact = resume_service.generate_and_render_resume_from_registered_profile(
+            db=db,
+            user_id=current_user.user_id,
+            job_description=payload.job_description,
+            output_format=payload.output_format,
+            file_name=payload.file_name,
+            profile_overrides=payload.profile_overrides,
+            template_path=payload.template_path,
+            docx_file_name=payload.docx_file_name,
+            pdf_file_name=payload.pdf_file_name,
+        )
+    except resume_service.ProfileNotFoundError as exc:
+        return JSONResponse(status_code=404, content={"success": False, "error": str(exc)})
+    except resume_service.ResumeGenerationValidationError as exc:
+        return JSONResponse(status_code=400, content={"success": False, "error": str(exc)})
+    except resume_render_service.ResumeRenderValidationError as exc:
+        return JSONResponse(status_code=400, content={"success": False, "error": str(exc)})
+    except (resume_service.ResumeGenerationFailedError, resume_render_service.ResumeRenderFailedError) as exc:
+        return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
+
+    return FileResponse(
+        path=artifact.output_path,
+        media_type=artifact.media_type,
+        filename=artifact.download_name,
+        background=BackgroundTask(artifact.temp_dir.cleanup),
+    )
 
 
 @router.post("/render-docx", response_model=None)

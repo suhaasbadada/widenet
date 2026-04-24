@@ -53,6 +53,39 @@ class _CallableList(list[Any]):
         return self
 
 
+class _TemplateLinks(_CallableList):
+    """Template-friendly links container supporting both list and dot-access patterns."""
+
+    def __init__(
+        self,
+        items: list[str],
+        email: str = "",
+        linkedin: str = "",
+        github: str = "",
+        portfolio: str = "",
+        website: str = "",
+    ) -> None:
+        super().__init__(items)
+        self.email = _TemplateLinkEntry(email)
+        self.linkedin = _TemplateLinkEntry(linkedin)
+        self.github = _TemplateLinkEntry(github)
+        self.portfolio = _TemplateLinkEntry(portfolio)
+        self.website = _TemplateLinkEntry(website)
+
+
+class _TemplateLinkEntry:
+    """Expose link values with the `show` attribute expected by template fields."""
+
+    def __init__(self, value: str = "") -> None:
+        normalized = (value or "").strip()
+        self.show = normalized
+        self.href = normalized
+        self.url = normalized
+
+    def __str__(self) -> str:
+        return self.show
+
+
 class _TemplateMapping:
     """Mapping wrapper that is template-friendly for dot-access and dict-like helpers."""
 
@@ -369,6 +402,10 @@ def _normalize_section_leading_spacing(docx_path: Path) -> None:
 
 
 def _to_template_context(value: Any) -> Any:
+    if isinstance(value, _TemplateLinks):
+        return value
+    if isinstance(value, _TemplateLinkEntry):
+        return value
     if isinstance(value, dict):
         return _TemplateMapping(value)
     if isinstance(value, list):
@@ -379,7 +416,217 @@ def _to_template_context(value: Any) -> Any:
 def _normalize_resume_for_template(resume: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(resume)
     normalized["skills"] = _normalize_skills_structure(resume.get("skills"))
+    normalized["links"] = _normalize_links_structure(
+        links=resume.get("links"),
+        fallback_email=str(resume.get("email", "")).strip(),
+    )
+    normalized["experience"] = _normalize_experience_for_template(resume.get("experience"))
+    normalized["projects"] = _normalize_projects_for_template(resume.get("projects"))
+    normalized["education"] = _normalize_education_for_template(resume.get("education"))
     return normalized
+
+
+def _to_string(value: Any) -> str:
+    return str(value).strip() if value is not None else ""
+
+
+def _to_string_list(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [_to_string(item) for item in value if _to_string(item)]
+    text = _to_string(value)
+    return [text] if text else []
+
+
+def _parse_duration_range(duration: str) -> tuple[str, str]:
+    text = duration.strip()
+    if not text:
+        return "", ""
+
+    for separator in (" – ", " - ", "–", "-"):
+        if separator in text:
+            start, end = text.split(separator, 1)
+            return start.strip(), end.strip()
+    return text, ""
+
+
+def _normalize_experience_for_template(experience: Any) -> list[dict[str, Any]]:
+    if not isinstance(experience, list):
+        return []
+
+    normalized: list[dict[str, Any]] = []
+    for item in experience:
+        if not isinstance(item, dict):
+            continue
+
+        title = _to_string(item.get("title") or item.get("role") or item.get("position"))
+        company = _to_string(item.get("company") or item.get("employer"))
+        location = _to_string(item.get("location"))
+
+        start = _to_string(item.get("start") or item.get("from"))
+        end = _to_string(item.get("end") or item.get("to"))
+        if not start and not end:
+            parsed_start, parsed_end = _parse_duration_range(_to_string(item.get("duration")))
+            start = parsed_start
+            end = parsed_end
+
+        bullets = _to_string_list(item.get("bullets"))
+        if not bullets:
+            bullets = _to_string_list(item.get("points"))
+        if not bullets:
+            bullets = _to_string_list(item.get("responsibilities"))
+        if not bullets:
+            bullets = _to_string_list(item.get("description"))
+
+        normalized.append(
+            {
+                "title": title,
+                "company": company,
+                "location": location,
+                "start": start,
+                "end": end,
+                "bullets": bullets,
+            }
+        )
+
+    return normalized
+
+
+def _normalize_projects_for_template(projects: Any) -> list[dict[str, Any]]:
+    if not isinstance(projects, list):
+        return []
+
+    normalized: list[dict[str, Any]] = []
+    for item in projects:
+        if not isinstance(item, dict):
+            continue
+
+        name = _to_string(item.get("name") or item.get("title"))
+        subtext = _to_string(item.get("subtext") or item.get("description") or item.get("summary"))
+
+        tech_value = item.get("tech") or item.get("technologies") or item.get("stack")
+        if isinstance(tech_value, list):
+            tech = ", ".join(_to_string(v) for v in tech_value if _to_string(v))
+        else:
+            tech = _to_string(tech_value)
+
+        bullets = _to_string_list(item.get("bullets"))
+        if not bullets:
+            bullets = _to_string_list(item.get("points"))
+        if not bullets:
+            bullets = _to_string_list(item.get("impact"))
+        if not bullets and subtext:
+            bullets = [subtext]
+
+        normalized.append(
+            {
+                "name": name,
+                "subtext": subtext,
+                "tech": tech,
+                "bullets": bullets,
+            }
+        )
+
+    return normalized
+
+
+def _normalize_education_for_template(education: Any) -> list[dict[str, Any]]:
+    if not isinstance(education, list):
+        return []
+
+    normalized: list[dict[str, Any]] = []
+    for item in education:
+        if not isinstance(item, dict):
+            continue
+
+        school = _to_string(item.get("school") or item.get("institution") or item.get("university"))
+        location = _to_string(item.get("location"))
+        degree = _to_string(item.get("degree"))
+        major = _to_string(item.get("major") or item.get("field") or item.get("specialization"))
+        gpa = _to_string(item.get("gpa") or item.get("cgpa"))
+        from_value = _to_string(item.get("from") or item.get("start"))
+        to_value = _to_string(item.get("to") or item.get("end"))
+
+        year = _to_string(item.get("year"))
+        if year and not to_value:
+            to_value = year
+
+        normalized.append(
+            {
+                "school": school,
+                "location": location,
+                "degree": degree,
+                "major": major,
+                "gpa": gpa,
+                "from": from_value,
+                "to": to_value,
+            }
+        )
+
+    return normalized
+
+
+def _normalize_links_structure(links: Any, fallback_email: str = "") -> _TemplateLinks:
+    items: list[str] = []
+    email = ""
+    linkedin = ""
+    github = ""
+    portfolio = ""
+    website = ""
+
+    if isinstance(links, dict):
+        email = str(links.get("email", "")).strip()
+        linkedin = str(links.get("linkedin", "")).strip()
+        github = str(links.get("github", "")).strip()
+        portfolio = str(links.get("portfolio", "")).strip()
+        website = str(links.get("website", "")).strip()
+
+        raw_items = links.get("items")
+        if isinstance(raw_items, list):
+            items.extend(str(item).strip() for item in raw_items if str(item).strip())
+
+        for value in links.values():
+            if isinstance(value, str) and value.strip():
+                items.append(value.strip())
+    elif isinstance(links, list):
+        items.extend(str(item).strip() for item in links if str(item).strip())
+    elif isinstance(links, str) and links.strip():
+        items.append(links.strip())
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        key = item.lower()
+        if key not in seen:
+            seen.add(key)
+            deduped.append(item)
+
+        normalized = item.lower()
+        if not email:
+            if normalized.startswith("mailto:") and len(item) > len("mailto:"):
+                email = item[len("mailto:") :]
+            elif "@" in item and "://" not in item and "/" not in item:
+                email = item
+
+        if "linkedin.com" in normalized and not linkedin:
+            linkedin = item
+        if "github.com" in normalized and not github:
+            github = item
+        if any(host in normalized for host in ("behance.net", "dribbble.com")) and not portfolio:
+            portfolio = item
+        if normalized.startswith("http") and not website:
+            website = item
+
+    if not email and fallback_email:
+        email = fallback_email
+
+    return _TemplateLinks(
+        items=deduped,
+        email=email,
+        linkedin=linkedin,
+        github=github,
+        portfolio=portfolio,
+        website=website,
+    )
 
 
 def _normalize_skills_structure(skills: Any) -> list[dict[str, Any]]:

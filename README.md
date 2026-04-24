@@ -71,15 +71,35 @@ All routes are prefixed `/api/v1`.
 | Method | Path | Access | Description |
 |---|---|---|---|
 | GET | `/resumes/me` | Authenticated | Fetch latest stored resume/profile |
-| POST | `/resumes/generate` | Authenticated | Generate an ATS-tailored resume from stored profile and a JD |
+| POST | `/resumes/generate` | Authenticated | Generate an ATS-tailored, render-ready resume JSON from stored profile and a JD |
+| POST | `/resumes/generate-file` | Authenticated | One-click generate and directly download tailored DOCX or PDF from JD |
+| POST | `/resumes/render-file` | Authenticated | Alias of generate-file; returns PDF when output_format is omitted |
 | POST | `/resumes/render-docx` | Authenticated | Render resume JSON to a downloadable DOCX file |
+| POST | `/resumes/render-pdf` | Authenticated | Render resume JSON to a downloadable PDF file |
+
+`/resumes/generate` now returns:
+- `resume_json`: directly consumable by `/resumes/render-docx` and `/resumes/render-pdf`
+- `render_docx_payload`: request body ready to POST to `/resumes/render-docx`
+- `render_pdf_payload`: request body ready to POST to `/resumes/render-pdf`
+
+If the stored profile is missing render-critical fields (`name`, `contact_number`, `links`, `projects`, `education`), pass `profile_overrides` in `/resumes/generate` to fill them.
+
+One-click flow via `/resumes/generate-file`:
+- Send `job_description` + `output_format` (`docx` or `pdf`)
+- Optionally include `profile_overrides`
+- API responds with the generated file directly (no second render call needed)
 
 ### Profiles
 
 | Method | Path | Access | Description |
 |---|---|---|---|
 | GET | `/profiles/{user_id}` | Authenticated | Fetch structured profile for a user |
+| PATCH | `/profiles/me` | Authenticated | Persist updates to latest profile fields (name, contact_number, links, structured profile fields) |
 | PUT | `/profiles/{user_id}/refresh` | Authenticated | Re-parse and update profile from stored raw resume |
+
+`PATCH /profiles/me` supports normalized links using:
+- `{ "type": "linkedin|github|portfolio|website|email|other", "url": "...", "is_primary": true|false }`
+- Legacy `links: ["https://..."]` remains supported and is auto-normalized into `profile_links`.
 
 ### Jobs
 
