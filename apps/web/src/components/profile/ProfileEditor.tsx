@@ -81,7 +81,7 @@ export function ProfileEditor({ profileData, setProfileData, onSave, saving, sub
     const arr = [...((profileData.structured_profile as any)?.[section] || [])];
     if (section === "experience") arr.push({ title: "", company: "", duration: "", from: "", to: "", points: [""] });
     if (section === "projects") arr.push({ name: "", description: "", points: [""] });
-    if (section === "education") arr.push({ institution: "", degree: "", major: "", from: "", to: "" });
+    if (section === "education") arr.push({ institution: "", degree: "", major: "", from: "", to: "", gpa: "" });
     updateStructured(section, arr);
   };
 
@@ -212,7 +212,7 @@ export function ProfileEditor({ profileData, setProfileData, onSave, saving, sub
                       }} className={inputClass} />
                   </div>
                   <div className="flex flex-col">
-                    <label className={labelClass}>From Date</label>
+                    <label className={labelClass}>From</label>
                     <input type="text" value={exp.from || getFrom(exp.duration)} onChange={(e) => {
                         const newExp = [...(profileData.structured_profile?.experience || [])];
                         newExp[index].from = e.target.value;
@@ -221,7 +221,7 @@ export function ProfileEditor({ profileData, setProfileData, onSave, saving, sub
                       }} className={inputClass} placeholder="Jan 2021" />
                   </div>
                   <div className="flex flex-col">
-                    <label className={labelClass}>To Date</label>
+                    <label className={labelClass}>To</label>
                     <input type="text" value={exp.to || getTo(exp.duration)} onChange={(e) => {
                         const newExp = [...(profileData.structured_profile?.experience || [])];
                         newExp[index].to = e.target.value;
@@ -234,13 +234,13 @@ export function ProfileEditor({ profileData, setProfileData, onSave, saving, sub
                 <div className="flex flex-col gap-3">
                   <label className={labelClass}>Bullet Points</label>
                   {(exp.points || []).map((pt, pIdx) => (
-                    <div key={pIdx} className="flex gap-3 items-start group/bullet">
+                    <div key={pIdx} className="relative group/bullet">
                       <textarea
                         value={pt}
                         onChange={(e) => handleListStringChange("experience", index, "points", pIdx, e.target.value)}
-                        className={`${inputClass} font-serif min-h-[60px] leading-relaxed`}
+                        className={`${inputClass} font-serif min-h-[60px] leading-relaxed pr-10`}
                       />
-                      <button type="button" onClick={() => removePoint("experience", index, "points", pIdx)} className="p-3 text-slate-300 hover:text-red-500 transition-colors mt-1 opacity-0 group-hover/bullet:opacity-100" title="Remove Bullet">
+                      <button type="button" onClick={() => removePoint("experience", index, "points", pIdx)} className="absolute top-2 right-2 p-1.5 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover/bullet:opacity-100 bg-white rounded-lg shadow-sm border border-slate-100" title="Remove Bullet">
                         <TrashIcon />
                       </button>
                     </div>
@@ -271,8 +271,8 @@ export function ProfileEditor({ profileData, setProfileData, onSave, saving, sub
                 <button type="button" onClick={() => removeEntry("education", index)} className="absolute right-0 top-0 p-2 text-slate-300 hover:text-red-500 transition-colors bg-white rounded-full opacity-0 group-hover:opacity-100 shadow-sm border border-slate-100 z-10" title="Delete Education">
                   <TrashIcon />
                 </button>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div className="flex flex-col">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+                  <div className="flex flex-col col-span-2">
                     <label className={labelClass}>Institution</label>
                     <input type="text" value={edu.institution || ""} onChange={(e) => {
                         const newEdu = [...(profileData.structured_profile?.education || [])];
@@ -280,7 +280,7 @@ export function ProfileEditor({ profileData, setProfileData, onSave, saving, sub
                         updateStructured("education", newEdu);
                       }} className={inputClass} />
                   </div>
-                  <div className="flex flex-col">
+                  <div className="flex flex-col col-span-2">
                     <label className={labelClass}>Degree & Major</label>
                     <input type="text" value={edu.degree || ""} onChange={(e) => {
                         const newEdu = [...(profileData.structured_profile?.education || [])];
@@ -288,21 +288,29 @@ export function ProfileEditor({ profileData, setProfileData, onSave, saving, sub
                         updateStructured("education", newEdu);
                       }} className={inputClass} placeholder="e.g. B.S. Computer Science" />
                   </div>
-                  <div className="flex flex-col">
-                    <label className={labelClass}>From Date</label>
+                  <div className="flex flex-col col-span-1">
+                    <label className={labelClass}>From</label>
                     <input type="text" value={edu.from || ""} onChange={(e) => {
                         const newEdu = [...(profileData.structured_profile?.education || [])];
                         newEdu[index].from = e.target.value;
                         updateStructured("education", newEdu);
-                      }} className={inputClass} />
+                      }} className={inputClass} placeholder="Aug 2021" />
                   </div>
-                  <div className="flex flex-col">
-                    <label className={labelClass}>To Date</label>
+                  <div className="flex flex-col col-span-1">
+                    <label className={labelClass}>To</label>
                     <input type="text" value={edu.to || ""} onChange={(e) => {
                         const newEdu = [...(profileData.structured_profile?.education || [])];
                         newEdu[index].to = e.target.value;
                         updateStructured("education", newEdu);
-                      }} className={inputClass} />
+                      }} className={inputClass} placeholder="May 2025" />
+                  </div>
+                  <div className="flex flex-col col-span-2">
+                    <label className={labelClass}>GPA (optional)</label>
+                    <input type="text" value={edu.gpa || ""} onChange={(e) => {
+                        const newEdu = [...(profileData.structured_profile?.education || [])];
+                        newEdu[index].gpa = e.target.value;
+                        updateStructured("education", newEdu);
+                      }} className={inputClass} placeholder="e.g. 3.8 / 4.0" />
                   </div>
                 </div>
               </div>
@@ -348,13 +356,13 @@ export function ProfileEditor({ profileData, setProfileData, onSave, saving, sub
                 <div className="flex flex-col gap-3 mt-2">
                   <label className={labelClass}>Bullet Points</label>
                   {(proj.points || []).map((pt, pIdx) => (
-                    <div key={pIdx} className="flex gap-3 items-start group/bullet">
+                    <div key={pIdx} className="relative group/bullet">
                       <textarea
                         value={pt}
                         onChange={(e) => handleListStringChange("projects", index, "points", pIdx, e.target.value)}
-                        className={`${inputClass} font-serif min-h-[60px] leading-relaxed`}
+                        className={`${inputClass} font-serif min-h-[60px] leading-relaxed pr-10`}
                       />
-                      <button type="button" onClick={() => removePoint("projects", index, "points", pIdx)} className="p-3 text-slate-300 hover:text-red-500 transition-colors mt-1 opacity-0 group-hover/bullet:opacity-100" title="Remove Bullet">
+                      <button type="button" onClick={() => removePoint("projects", index, "points", pIdx)} className="absolute top-2 right-2 p-1.5 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover/bullet:opacity-100 bg-white rounded-lg shadow-sm border border-slate-100" title="Remove Bullet">
                         <TrashIcon />
                       </button>
                     </div>
