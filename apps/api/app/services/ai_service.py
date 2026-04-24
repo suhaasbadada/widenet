@@ -91,6 +91,8 @@ Return ONLY a JSON object with at least these top-level fields:
       "title": "<job title>",
       "company": "<company name>",
       "duration": "<e.g. Jan 2021 - Mar 2023>",
+      "from": "<start date, e.g. Jan 2021>",
+      "to": "<end date, e.g. Mar 2023 or Present>",
       "location": "<optional>",
       "points": ["bullet 1", "bullet 2"]
     }
@@ -167,11 +169,30 @@ def _normalize_experience(experience: Any) -> list[dict[str, Any]]:
         if not points:
             points = _to_string_list(item.get("description"))
 
+        duration = str(item.get("duration", "")).strip()
+        from_date = str(item.get("from", "")).strip() or str(item.get("start", "")).strip() or str(item.get("start_date", "")).strip()
+        to_date = str(item.get("to", "")).strip() or str(item.get("end", "")).strip() or str(item.get("end_date", "")).strip()
+
+        # Derive from/to from duration string if not explicitly provided
+        if duration and (not from_date or not to_date):
+            parts = [p.strip() for p in duration.replace("\u2014", "-").replace("\u2013", "-").split("-") if p.strip()]
+            if len(parts) >= 2:
+                from_date = from_date or parts[0]
+                to_date = to_date or parts[-1]
+            elif len(parts) == 1:
+                from_date = from_date or parts[0]
+
+        # Build duration string from from/to if missing
+        if not duration and (from_date or to_date):
+            duration = f"{from_date} - {to_date}".strip(" -")
+
         normalized_items.append(
             {
                 "title": str(item.get("title", "")).strip(),
                 "company": str(item.get("company", "")).strip(),
-                "duration": str(item.get("duration", "")).strip(),
+                "duration": duration,
+                "from": from_date,
+                "to": to_date,
                 "location": str(item.get("location", "")).strip(),
                 "points": points,
             }

@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 from urllib.parse import urlparse
 
 import requests
@@ -19,6 +20,53 @@ from app.services.resume_service import (
     _normalize_education_major_shape,
 )
 from app.utils.file_parser import extract_text
+
+
+def _backfill_experience_dates(structured_profile: dict[str, Any]) -> dict[str, Any]:
+    """Ensure every experience entry has explicit 'from' and 'to' fields.
+
+    Derives them by splitting the legacy 'duration' string when they are
+    absent so that both old DB records and freshly-saved payloads always
+    have all three fields populated.
+    """
+    experience = structured_profile.get("experience")
+    if not isinstance(experience, list):
+        return structured_profile
+
+    updated: list[dict[str, Any]] = []
+    for item in experience:
+        if not isinstance(item, dict):
+            updated.append(item)
+            continue
+
+        entry = dict(item)  # shallow copy so we don't mutate caller data
+        from_val = str(entry.get("from", "") or "").strip()
+        to_val = str(entry.get("to", "") or "").strip()
+        duration = str(entry.get("duration", "") or "").strip()
+
+        # Derive from/to from duration when either is missing
+        if duration and (not from_val or not to_val):
+            # Normalise em-dash (\u2014) and en-dash (\u2013) before splitting
+            normalised = duration.replace("\u2014", " - ").replace("\u2013", " - ")
+            parts = [p.strip() for p in normalised.split(" - ", 1) if p.strip()]
+            if len(parts) >= 2:
+                from_val = from_val or parts[0]
+                to_val = to_val or parts[1]
+            elif len(parts) == 1:
+                from_val = from_val or parts[0]
+
+        # Rebuild duration from from/to if it was empty
+        if not duration and (from_val or to_val):
+            duration = f"{from_val} - {to_val}".strip(" -")
+
+        entry["from"] = from_val
+        entry["to"] = to_val
+        entry["duration"] = duration
+        updated.append(entry)
+
+    structured_profile = dict(structured_profile)
+    structured_profile["experience"] = updated
+    return structured_profile
 
 
 class ProfileNotFoundError(LookupError):
@@ -71,7 +119,7 @@ def refresh_profile(db: Session, user_id: uuid.UUID) -> Profile:
     parsed["education"] = _normalize_education_major_shape(parsed.get("education", []))
 
     profile.raw_resume = raw_resume
-    profile.structured_profile = parsed
+    profile.structured_profile = _backfill_experience_dates(parsed)
     profile.name = parsed_name or profile.name
     profile.contact_number = parsed_contact or profile.contact_number
     normalized_links = profile_link_service.normalize_links_payload(parsed_links)
@@ -111,7 +159,7 @@ def update_latest_profile(db: Session, user_id: uuid.UUID, payload: ProfileUpdat
     if payload.raw_resume is not None:
         profile.raw_resume = payload.raw_resume
     if payload.structured_profile is not None:
-        profile.structured_profile = payload.structured_profile
+        profile.structured_profile = _backfill_experience_dates(payload.structured_profile)
     if payload.name is not None:
         profile.name = payload.name.strip() or None
     if payload.contact_number is not None:

@@ -462,12 +462,12 @@ def _normalize_experience_for_template(experience: Any) -> list[dict[str, Any]]:
         company = _to_string(item.get("company") or item.get("employer"))
         location = _to_string(item.get("location"))
 
-        start = _to_string(item.get("start") or item.get("from"))
-        end = _to_string(item.get("end") or item.get("to"))
-        if not start and not end:
+        from_val = _to_string(item.get("from") or item.get("start"))
+        to_val = _to_string(item.get("to") or item.get("end"))
+        if not from_val and not to_val:
             parsed_start, parsed_end = _parse_duration_range(_to_string(item.get("duration")))
-            start = parsed_start
-            end = parsed_end
+            from_val = parsed_start
+            to_val = parsed_end
 
         bullets = _to_string_list(item.get("bullets"))
         if not bullets:
@@ -482,8 +482,8 @@ def _normalize_experience_for_template(experience: Any) -> list[dict[str, Any]]:
                 "title": title,
                 "company": company,
                 "location": location,
-                "start": start,
-                "end": end,
+                "from": from_val,
+                "to": to_val,
                 "bullets": bullets,
             }
         )

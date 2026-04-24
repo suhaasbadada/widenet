@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getApiHealth } from "@/lib/api";
 
 export default async function Home() {
@@ -28,8 +29,8 @@ export default async function Home() {
           </p>
 
           <div className="mt-10 flex flex-wrap gap-3 animate-rise" style={{ animationDelay: "160ms" }}>
-            <button className="cta-main" type="button">Join Waitlist</button>
-            <button className="cta-ghost" type="button">See Product Preview</button>
+            <Link href="/register" className="cta-main whitespace-nowrap">Create Account</Link>
+            <Link href="/login" className="cta-ghost whitespace-nowrap">Sign In</Link>
           </div>
 
           <div className="mt-16 grid gap-8 border-t border-slate-300/70 pt-8 md:grid-cols-4 animate-rise" style={{ animationDelay: "230ms" }}>
