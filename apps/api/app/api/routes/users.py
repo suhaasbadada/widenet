@@ -32,7 +32,7 @@ def update_me(
         user = user_service.update_user(
             db=db,
             user_id=current_user.user_id,
-            payload=UserUpdate(email=payload.email),
+            payload=UserUpdate(name=payload.name, email=payload.email),
         )
     except user_service.UserNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

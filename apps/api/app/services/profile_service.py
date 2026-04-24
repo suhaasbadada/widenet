@@ -16,6 +16,7 @@ from app.services.resume_service import (
     _extract_links_from_raw_resume,
     _extract_name_from_profile,
     _extract_name_from_raw_resume,
+    _normalize_education_major_shape,
 )
 from app.utils.file_parser import extract_text
 
@@ -67,6 +68,7 @@ def refresh_profile(db: Session, user_id: uuid.UUID) -> Profile:
         parsed["links"] = parsed_links
     parsed["links"] = _extract_links_from_profile(parsed) or parsed_links
     parsed["education"] = _enrich_education_from_raw_resume(parsed.get("education", []), raw_resume)
+    parsed["education"] = _normalize_education_major_shape(parsed.get("education", []))
 
     profile.raw_resume = raw_resume
     profile.structured_profile = parsed

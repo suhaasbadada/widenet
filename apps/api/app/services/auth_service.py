@@ -21,14 +21,18 @@ def register_user(db: Session, payload: AuthRegisterRequest) -> tuple[User, str]
     ensure_jwt_configured()
     normalized_email = user_service._normalize_email(str(payload.email))
     default_role = user_service.get_default_role_for_email(normalized_email)
+    normalized_name = user_service._normalize_name(payload.name)
 
     user = db.scalar(select(User).where(func.lower(User.email) == normalized_email))
     if user is None:
-        user = User(email=normalized_email, role=default_role.value)
+        user = User(name=normalized_name, email=normalized_email, role=default_role.value)
         db.add(user)
         db.flush()
     elif not getattr(user, "role", None):
         user.role = default_role.value
+
+    if normalized_name and not getattr(user, "name", None):
+        user.name = normalized_name
 
     credential = db.get(AuthCredential, user.id)
     if credential is not None:

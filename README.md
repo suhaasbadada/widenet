@@ -48,16 +48,18 @@ All routes are prefixed `/api/v1`.
 | POST | `/auth/login` | Public | Login and receive a JWT |
 | POST | `/auth/logout` | Authenticated | Stateless logout (discard token client-side) |
 
+`POST /auth/register` requires `name`, and `users.name` is persisted as a non-null field.
+
 ### Users
 
 | Method | Path | Access | Description |
 |---|---|---|---|
 | GET | `/users/me` | Authenticated | Fetch own record |
-| PUT | `/users/me` | Authenticated | Update own email |
+| PUT | `/users/me` | Authenticated | Update own name and/or email |
 | GET | `/users` | Admin | List all users |
 | GET | `/users/{user_id}` | Admin | Fetch a user by id |
-| POST | `/users` | Admin | Provision a user directly |
-| PUT | `/users/{user_id}` | Admin | Update a user's email or role |
+| POST | `/users` | Admin | Provision a user directly (name required) |
+| PUT | `/users/{user_id}` | Admin | Update a user's name, email, or role |
 | DELETE | `/users/{user_id}` | Admin | Delete a user (cascades to related records) |
 
 ### Resume Upload
@@ -93,9 +95,9 @@ One-click flow via `/resumes/generate-file`:
 
 | Method | Path | Access | Description |
 |---|---|---|---|
-| GET | `/profiles/{user_id}` | Authenticated | Fetch structured profile for a user |
+| GET | `/profiles/{user_id}` | Public | Fetch structured profile for a user |
 | PATCH | `/profiles/me` | Authenticated | Persist updates to latest profile fields (name, contact_number, links, structured profile fields) |
-| PUT | `/profiles/{user_id}/refresh` | Authenticated | Re-parse and update profile from stored raw resume |
+| PUT | `/profiles/{user_id}/refresh` | Public | Re-parse and update profile from stored raw resume |
 
 `PATCH /profiles/me` supports normalized links using:
 - `{ "type": "linkedin|github|portfolio|website|email|other", "url": "...", "is_primary": true|false }`
@@ -142,12 +144,14 @@ One-click flow via `/resumes/generate-file`:
 
 ## API Response Format
 
-All endpoints return a consistent envelope:
+Most JSON endpoints return a consistent envelope:
 
 ```json
 { "success": true, "data": {} }
 { "success": false, "error": "message" }
 ```
+
+Exception: file download routes (`/resumes/generate-file`, `/resumes/render-file`, `/resumes/render-docx`, `/resumes/render-pdf`) return binary file responses on success.
 
 ---
 

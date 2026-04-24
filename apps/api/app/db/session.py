@@ -33,18 +33,28 @@ def initialize_database() -> None:
     import app.models  # noqa: F401 - register SQLAlchemy models before create_all
 
     Base.metadata.create_all(bind=engine)
-    _ensure_user_role_column()
+    _ensure_user_columns()
     _ensure_profile_render_columns()
     _sync_bootstrap_admin_roles()
 
 
-def _ensure_user_role_column() -> None:
+def _ensure_user_columns() -> None:
     inspector = inspect(engine)
     if "users" not in inspector.get_table_names():
         return
 
     column_names = {column["name"] for column in inspector.get_columns("users")}
     with engine.begin() as connection:
+        if "name" not in column_names:
+            connection.execute(text("ALTER TABLE users ADD COLUMN name VARCHAR(255)"))
+        connection.execute(
+            text(
+                "UPDATE users "
+                "SET name = split_part(email, '@', 1) "
+                "WHERE name IS NULL OR btrim(name) = ''"
+            )
+        )
+        connection.execute(text("ALTER TABLE users ALTER COLUMN name SET NOT NULL"))
         if "role" not in column_names:
             connection.execute(
                 text(

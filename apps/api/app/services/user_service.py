@@ -20,6 +20,13 @@ def _normalize_email(email: str) -> str:
     return str(email).strip().lower()
 
 
+def _normalize_name(name: str) -> str:
+    normalized = str(name).strip()
+    if not normalized:
+        raise ValueError("User name cannot be empty.")
+    return normalized
+
+
 def get_bootstrap_admin_emails() -> set[str]:
     raw_admin_emails = os.environ.get("ADMIN_EMAILS", "")
     return {
@@ -56,7 +63,11 @@ def create_user(db: Session, payload: UserCreate) -> User:
     if existing_user is not None:
         raise UserConflictError(f"User with email '{normalized_email}' already exists.")
 
-    user = User(email=normalized_email, role=payload.role.value)
+    user = User(
+        name=_normalize_name(payload.name),
+        email=normalized_email,
+        role=payload.role.value,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -68,6 +79,9 @@ def update_user(db: Session, user_id: uuid.UUID, payload: UserUpdate) -> User:
     user = db.get(User, user_id)
     if user is None:
         raise UserNotFoundError(f"User '{user_id}' does not exist.")
+
+    if payload.name is not None:
+        user.name = _normalize_name(payload.name)
 
     if payload.email is not None:
         normalized_email = _normalize_email(str(payload.email))

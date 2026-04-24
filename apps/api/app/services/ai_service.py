@@ -107,7 +107,7 @@ Return ONLY a JSON object with at least these top-level fields:
         {
             "institution": "<school or university>",
             "degree": "<degree>",
-            "field": "<major or specialization>",
+            "major": "<major or specialization>",
             "location": "<optional>",
             "gpa": "<GPA if present>",
             "from": "<start date if present>",
@@ -207,11 +207,29 @@ def _normalize_education(education: Any) -> list[dict[str, Any]]:
     for item in education:
         if not isinstance(item, dict):
             continue
+
+        degree_value = str(item.get("degree", "")).strip()
+        major_value = str(item.get("major", "")).strip() or str(item.get("field", "")).strip()
+        split_parts = degree_value.rsplit(" in ", 1)
+        if len(split_parts) == 2 and split_parts[1].strip():
+            suffix = split_parts[1].strip()
+            if not major_value or suffix.lower() == major_value.lower():
+                degree_value = split_parts[0].strip()
+                major_value = major_value or suffix
+
+        lowered_degree = degree_value.lower()
+        if any(token in lowered_degree for token in ("master", "m.s", "msc", "m.tech", "mba", "m.e")):
+            degree_value = "Masters"
+        elif any(token in lowered_degree for token in ("bachelor", "b.s", "bsc", "b.tech", "b.e", "ba ")):
+            degree_value = "Bachelors"
+        elif any(token in lowered_degree for token in ("phd", "doctor", "d.phil")):
+            degree_value = "PhD"
+
         normalized_items.append(
             {
                 "institution": str(item.get("institution", "")).strip() or str(item.get("school", "")).strip() or str(item.get("university", "")).strip(),
-                "degree": str(item.get("degree", "")).strip(),
-                "field": str(item.get("field", "")).strip() or str(item.get("major", "")).strip(),
+                "degree": degree_value,
+                "major": major_value,
                 "gpa": str(item.get("gpa", "")).strip() or str(item.get("cgpa", "")).strip(),
                 "from": str(item.get("from", "")).strip() or str(item.get("start", "")).strip(),
                 "to": str(item.get("to", "")).strip() or str(item.get("end", "")).strip() or str(item.get("year", "")).strip(),

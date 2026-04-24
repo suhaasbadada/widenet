@@ -287,6 +287,39 @@ def _enrich_education_from_raw_resume(education: Any, raw_resume: str) -> list[d
     return enriched
 
 
+def _normalize_education_major_shape(education: Any) -> list[dict[str, Any]]:
+    if not isinstance(education, list):
+        return []
+
+    normalized: list[dict[str, Any]] = []
+    for item in education:
+        if not isinstance(item, dict):
+            continue
+        updated = dict(item)
+        degree_value = str(updated.get("degree") or "").strip()
+        major_value = str(updated.get("major") or "").strip() or str(updated.get("field") or "").strip()
+        split_parts = degree_value.rsplit(" in ", 1)
+        if len(split_parts) == 2 and split_parts[1].strip():
+            suffix = split_parts[1].strip()
+            if not major_value or suffix.lower() == major_value.lower():
+                degree_value = split_parts[0].strip()
+                major_value = major_value or suffix
+
+        lowered_degree = degree_value.lower()
+        if any(token in lowered_degree for token in ("master", "m.s", "msc", "m.tech", "mba", "m.e")):
+            degree_value = "Masters"
+        elif any(token in lowered_degree for token in ("bachelor", "b.s", "bsc", "b.tech", "b.e", "ba ")):
+            degree_value = "Bachelors"
+        elif any(token in lowered_degree for token in ("phd", "doctor", "d.phil")):
+            degree_value = "PhD"
+
+        updated["degree"] = degree_value
+        updated["major"] = major_value
+        updated.pop("field", None)
+        normalized.append(updated)
+    return normalized
+
+
 def _extract_name_from_profile(base_resume: dict[str, Any]) -> str:
     return (
         str(base_resume.get("name") or "").strip()
@@ -777,6 +810,7 @@ def process_resume_upload(
         parsed["links"] = parsed_links
     parsed["links"] = _extract_links_from_profile(parsed) or parsed_links
     parsed["education"] = _enrich_education_from_raw_resume(parsed.get("education", []), raw_resume)
+    parsed["education"] = _normalize_education_major_shape(parsed.get("education", []))
 
     profile = Profile(
         user_id=user_id,
