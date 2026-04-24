@@ -1,9 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { listJobs, type JobRecord } from "@/lib/api/jobs";
 import { generateCoverLetter, generateColdEmail } from "@/lib/api/outreach";
 
 export default function OutreachPage() {
+  const [savedJobs, setSavedJobs] = useState<JobRecord[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState("");
+  const [jobsLoading, setJobsLoading] = useState(false);
   const [jobTitle, setJobTitle] = useState("");
   const [company, setCompany] = useState("");
   const [jobDescription, setJobDescription] = useState("");
@@ -12,6 +16,34 @@ export default function OutreachPage() {
   const [loading, setLoading] = useState<"cover-letter" | "cold-email" | null>(null);
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const loadJobs = async () => {
+      setJobsLoading(true);
+      try {
+        const jobs = await listJobs();
+        setSavedJobs(jobs);
+      } catch {
+        // Job selection is optional here, so keep generation available with manual entry.
+      } finally {
+        setJobsLoading(false);
+      }
+    };
+
+    void loadJobs();
+  }, []);
+
+  const applySelectedJob = (jobId: string) => {
+    setSelectedJobId(jobId);
+    const selectedJob = savedJobs.find((job) => job.id === jobId);
+    if (!selectedJob) {
+      return;
+    }
+
+    setJobTitle(selectedJob.title);
+    setCompany(selectedJob.company);
+    setJobDescription(selectedJob.description || "");
+  };
 
   const handleGenerate = async (type: "cover-letter" | "cold-email") => {
     if (!jobTitle || !company || !jobDescription) {
@@ -54,6 +86,22 @@ export default function OutreachPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-5">
           <h3 className="font-bold font-display text-lg mb-2">Job Context</h3>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-semibold text-slate-700">Select Saved Job (Optional)</label>
+            <select
+              value={selectedJobId}
+              onChange={(e) => applySelectedJob(e.target.value)}
+              className="p-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none text-sm bg-white"
+            >
+              <option value="">{jobsLoading ? "Loading saved jobs..." : "Select a saved job"}</option>
+              {savedJobs.map((job) => (
+                <option key={job.id} value={job.id}>
+                  {job.title} at {job.company}
+                </option>
+              ))}
+            </select>
+          </div>
           
           <div className="flex flex-col gap-2">
             <label className="text-sm font-semibold text-slate-700">Job Title</label>

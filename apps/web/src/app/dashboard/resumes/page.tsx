@@ -1,25 +1,96 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { createJob, listJobs, type JobRecord } from "@/lib/api/jobs";
 import { generateAndRenderFile } from "@/lib/api/resumes";
 
 export default function ResumesPage() {
+  const [role, setRole] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [jobDescription, setJobDescription] = useState("");
+  const [savedJobs, setSavedJobs] = useState<JobRecord[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState("");
+  const [jobsLoading, setJobsLoading] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [savingJob, setSavingJob] = useState(false);
   const [error, setError] = useState("");
 
-  const handleGeneratePdf = async () => {
-    if (!jobDescription.trim()) {
-      setError("Job Description is required.");
+  const loadJobs = async () => {
+    setJobsLoading(true);
+    try {
+      const jobs = await listJobs();
+      setSavedJobs(jobs);
+    } catch {
+      // Non-blocking for resume generation; avoid page-level failure for temporary jobs API issues.
+    } finally {
+      setJobsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadJobs();
+  }, []);
+
+  const applySelectedJob = (jobId: string) => {
+    setSelectedJobId(jobId);
+    const selectedJob = savedJobs.find((job) => job.id === jobId);
+    if (!selectedJob) {
       return;
     }
-    
+
+    setRole(selectedJob.title);
+    setCompanyName(selectedJob.company);
+    setJobDescription(selectedJob.description || "");
+  };
+
+  const validateJobInput = (): boolean => {
+    if (!role.trim() || !companyName.trim() || !jobDescription.trim()) {
+      setError("Role, Company Name, and Job Description are required.");
+      return false;
+    }
+    return true;
+  };
+
+  const saveCurrentJob = async (): Promise<string | null> => {
+    if (!validateJobInput()) {
+      return null;
+    }
+
+    setError("");
+    setSavingJob(true);
+    try {
+      const saved = await createJob({
+        title: role.trim(),
+        company: companyName.trim(),
+        description: jobDescription.trim(),
+      });
+      setSavedJobs((prev) => [saved, ...prev]);
+      setSelectedJobId(saved.id);
+      return saved.id;
+    } catch (err: any) {
+      setError(err.message || "Failed to save job.");
+      return null;
+    } finally {
+      setSavingJob(false);
+    }
+  };
+
+  const handleGeneratePdf = async () => {
+    if (!validateJobInput()) {
+      return;
+    }
+
     setError("");
     setLoading(true);
 
     try {
+      const savedJobId = await saveCurrentJob();
+      if (!savedJobId) {
+        return;
+      }
+
       const blob = await generateAndRenderFile({
-        job_description: jobDescription,
+        job_description: jobDescription.trim(),
         output_format: "pdf"
       });
       
@@ -56,6 +127,44 @@ export default function ResumesPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
           <h3 className="font-bold font-display text-lg mb-4">Job Details</h3>
+
+          <div className="flex flex-col gap-2 mb-4">
+            <label className="text-sm font-semibold text-slate-700">Use Saved Job (Optional)</label>
+            <select
+              value={selectedJobId}
+              onChange={(e) => applySelectedJob(e.target.value)}
+              className="p-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none text-sm bg-white"
+            >
+              <option value="">{jobsLoading ? "Loading saved jobs..." : "Select a saved job"}</option>
+              {savedJobs.map((job) => (
+                <option key={job.id} value={job.id}>
+                  {job.title} at {job.company}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-2 mb-4">
+            <label className="text-sm font-semibold text-slate-700">Role</label>
+            <input
+              type="text"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="p-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none"
+              placeholder="e.g. Senior Backend Engineer"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2 mb-6">
+            <label className="text-sm font-semibold text-slate-700">Company Name</label>
+            <input
+              type="text"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              className="p-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none"
+              placeholder="e.g. Acme Corp"
+            />
+          </div>
           
           <div className="flex flex-col gap-2 mb-6">
             <label className="text-sm font-semibold text-slate-700">Paste Job Description</label>
@@ -69,9 +178,18 @@ export default function ResumesPage() {
           </div>
 
           <div className="flex gap-4">
+            <button
+              onClick={() => {
+                void saveCurrentJob();
+              }}
+              disabled={savingJob || loading}
+              className="cta-ghost flex-1 flex justify-center items-center gap-2"
+            >
+              {savingJob ? "Saving..." : "Save Job"}
+            </button>
             <button 
               onClick={handleGeneratePdf} 
-              disabled={loading} 
+              disabled={loading || savingJob} 
               className="cta-main flex-1 flex justify-center items-center gap-2"
             >
               {loading ? "Generating..." : "Generate & Download PDF"}
