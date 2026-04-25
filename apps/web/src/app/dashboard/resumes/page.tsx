@@ -149,7 +149,7 @@ export default function ResumesPage() {
           <h3 className="font-bold font-display text-lg mb-4">Job Details</h3>
 
           <div className="flex flex-col gap-2 mb-4">
-            <label className="text-sm font-semibold text-slate-700">Use Saved Job (Optional)</label>
+            <label className="text-sm font-semibold text-[var(--accent)]">Use Saved Job (Optional)</label>
             <select
               value={selectedJobId}
               onChange={(e) => applySelectedJob(e.target.value)}
@@ -165,7 +165,7 @@ export default function ResumesPage() {
           </div>
 
           <div className="flex flex-col gap-2 mb-4">
-            <label className="text-sm font-semibold text-slate-700">Role</label>
+            <label className="text-sm font-semibold text-[var(--accent)]">Role</label>
             <input
               type="text"
               value={role}
@@ -176,7 +176,7 @@ export default function ResumesPage() {
           </div>
 
           <div className="flex flex-col gap-2 mb-6">
-            <label className="text-sm font-semibold text-slate-700">Company Name</label>
+            <label className="text-sm font-semibold text-[var(--accent)]">Company Name</label>
             <input
               type="text"
               value={companyName}
@@ -187,7 +187,7 @@ export default function ResumesPage() {
           </div>
           
           <div className="flex flex-col gap-2 mb-6">
-            <label className="text-sm font-semibold text-slate-700">Paste Job Description</label>
+            <label className="text-sm font-semibold text-[var(--accent)]">Paste Job Description</label>
             <textarea
               rows={12}
               value={jobDescription}

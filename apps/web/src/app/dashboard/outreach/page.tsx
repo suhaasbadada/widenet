@@ -88,7 +88,7 @@ export default function OutreachPage() {
           <h3 className="font-bold font-display text-lg mb-2">Job Context</h3>
 
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-slate-700">Select Saved Job (Optional)</label>
+            <label className="text-sm font-semibold text-[var(--accent)]">Select Saved Job (Optional)</label>
             <select
               value={selectedJobId}
               onChange={(e) => applySelectedJob(e.target.value)}
@@ -104,7 +104,7 @@ export default function OutreachPage() {
           </div>
           
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-slate-700">Job Title</label>
+            <label className="text-sm font-semibold text-[var(--accent)]">Job Title</label>
             <input
               type="text"
               value={jobTitle}
@@ -115,7 +115,7 @@ export default function OutreachPage() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-slate-700">Company</label>
+            <label className="text-sm font-semibold text-[var(--accent)]">Company</label>
             <input
               type="text"
               value={company}
@@ -126,7 +126,7 @@ export default function OutreachPage() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-slate-700">Job Description</label>
+            <label className="text-sm font-semibold text-[var(--accent)]">Job Description</label>
             <textarea
               rows={4}
               value={jobDescription}
@@ -136,7 +136,7 @@ export default function OutreachPage() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-semibold text-slate-700">Company Context (Optional)</label>
+            <label className="text-sm font-semibold text-[var(--accent)]">Company Context (Optional)</label>
             <input
               type="text"
               value={companyContext}

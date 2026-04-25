@@ -221,7 +221,7 @@ export function ProfileEditor({ profileData, setProfileData, onSave, saving, sub
   };
 
   const inputClass = "w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] outline-none text-sm transition-all bg-white min-h-[48px]";
-  const labelClass = "text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1 ml-1";
+  const labelClass = "text-[11px] font-bold uppercase tracking-wider text-[var(--accent)] mb-1 ml-1";
 
   // SVG Icons
   const TrashIcon = () => (

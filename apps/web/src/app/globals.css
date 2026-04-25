@@ -149,6 +149,29 @@ body {
   animation: rise 500ms ease forwards;
 }
 
+.dashboard-shell input,
+.dashboard-shell textarea,
+.dashboard-shell select {
+  color: var(--foreground) !important;
+  caret-color: var(--foreground) !important;
+  -webkit-text-fill-color: var(--foreground);
+}
+
+.dashboard-shell input::placeholder,
+.dashboard-shell textarea::placeholder {
+  color: rgba(30, 36, 50, 0.55) !important;
+}
+
+.dashboard-shell input:-webkit-autofill,
+.dashboard-shell textarea:-webkit-autofill,
+.dashboard-shell select:-webkit-autofill {
+  -webkit-text-fill-color: var(--foreground) !important;
+}
+
+.dashboard-shell label {
+  color: var(--accent) !important;
+}
+
 @keyframes rise {
   to {
     opacity: 1;

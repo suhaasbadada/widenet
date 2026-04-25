@@ -86,7 +86,7 @@ export default function AnswersPage() {
 
       <div className="max-w-2xl bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
         <div className="flex flex-col gap-2 mb-6">
-          <label className="text-sm font-semibold text-slate-700">Select Saved Job</label>
+          <label className="text-sm font-semibold text-[var(--accent)]">Select Saved Job</label>
           <select
             value={selectedJobId}
             onChange={(e) => setSelectedJobId(e.target.value)}
@@ -102,7 +102,7 @@ export default function AnswersPage() {
         </div>
 
         <div className="flex flex-col gap-2 mb-6">
-          <label className="text-sm font-semibold text-slate-700">Application Question</label>
+          <label className="text-sm font-semibold text-[var(--accent)]">Application Question</label>
           <textarea
             rows={3}
             value={question}
