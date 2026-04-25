@@ -56,6 +56,26 @@ export default function ResumesPage() {
       return null;
     }
 
+    const normalizedRole = role.trim().toLowerCase();
+    const normalizedCompany = companyName.trim().toLowerCase();
+    const normalizedDescription = jobDescription.trim().toLowerCase();
+
+    const existingJob = savedJobs.find((job) => {
+      const title = job.title.trim().toLowerCase();
+      const company = job.company.trim().toLowerCase();
+      const description = (job.description || "").trim().toLowerCase();
+      return (
+        title === normalizedRole &&
+        company === normalizedCompany &&
+        description === normalizedDescription
+      );
+    });
+
+    if (existingJob) {
+      setSelectedJobId(existingJob.id);
+      return existingJob.id;
+    }
+
     setError("");
     setSavingJob(true);
     try {
@@ -133,7 +153,7 @@ export default function ResumesPage() {
             <select
               value={selectedJobId}
               onChange={(e) => applySelectedJob(e.target.value)}
-              className="p-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none text-sm bg-white"
+              className="h-12 px-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none bg-white"
             >
               <option value="">{jobsLoading ? "Loading saved jobs..." : "Select a saved job"}</option>
               {savedJobs.map((job) => (
@@ -150,7 +170,7 @@ export default function ResumesPage() {
               type="text"
               value={role}
               onChange={(e) => setRole(e.target.value)}
-              className="p-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none"
+              className="h-12 px-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none"
               placeholder="e.g. Senior Backend Engineer"
             />
           </div>

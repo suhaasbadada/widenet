@@ -90,7 +90,7 @@ export default function AnswersPage() {
           <select
             value={selectedJobId}
             onChange={(e) => setSelectedJobId(e.target.value)}
-            className="p-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none text-sm bg-white"
+            className="h-12 px-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none bg-white"
           >
             <option value="">{jobsLoading ? "Loading saved jobs..." : "Choose one saved job"}</option>
             {jobs.map((job) => (
