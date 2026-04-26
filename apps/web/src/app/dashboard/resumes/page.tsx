@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { createJob, listJobs, type JobRecord } from "@/lib/api/jobs";
 import { generateAndRenderFile } from "@/lib/api/resumes";
+import SaveNewJobModal from "@/components/jobs/SaveNewJobModal";
 
 export default function ResumesPage() {
   const [role, setRole] = useState("");
@@ -14,6 +15,7 @@ export default function ResumesPage() {
   const [loading, setLoading] = useState(false);
   const [savingJob, setSavingJob] = useState(false);
   const [error, setError] = useState("");
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
 
   const loadJobs = async () => {
     setJobsLoading(true);
@@ -129,8 +131,18 @@ export default function ResumesPage() {
     }
   };
 
+  const handleNewJobSaved = (job: JobRecord) => {
+    setSavedJobs((prev) => [job, ...prev]);
+    applySelectedJob(job.id);
+  };
+
   return (
     <div className="animate-rise">
+      <SaveNewJobModal
+        isOpen={isSaveModalOpen}
+        onClose={() => setIsSaveModalOpen(false)}
+        onSaved={handleNewJobSaved}
+      />
       <div className="mb-8 flex justify-between items-center">
         <div>
           <h2 className="font-display text-3xl font-bold text-slate-900">Tailored Resumes</h2>
@@ -150,18 +162,29 @@ export default function ResumesPage() {
 
           <div className="flex flex-col gap-2 mb-4">
             <label className="text-sm font-semibold text-[var(--accent)]">Use Saved Job (Optional)</label>
-            <select
-              value={selectedJobId}
-              onChange={(e) => applySelectedJob(e.target.value)}
-              className="h-12 px-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none bg-white"
-            >
-              <option value="">{jobsLoading ? "Loading saved jobs..." : "Select a saved job"}</option>
-              {savedJobs.map((job) => (
-                <option key={job.id} value={job.id}>
-                  {job.title} at {job.company}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedJobId}
+                onChange={(e) => applySelectedJob(e.target.value)}
+                className="flex-1 h-12 px-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none bg-white min-w-0"
+              >
+                <option value="">{jobsLoading ? "Loading..." : "Select a saved job"}</option>
+                {savedJobs.map((job) => (
+                  <option key={job.id} value={job.id}>
+                    {job.title} at {job.company}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setIsSaveModalOpen(true)}
+                title="Save new job"
+                aria-label="Save new job"
+                className="flex-shrink-0 h-12 w-12 rounded-xl border-2 border-[var(--accent)] text-[var(--accent)] flex items-center justify-center hover:bg-[var(--accent-soft)] transition text-2xl font-light"
+              >
+                +
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-col gap-2 mb-4">
@@ -198,19 +221,10 @@ export default function ResumesPage() {
           </div>
 
           <div className="flex gap-4">
-            <button
-              onClick={() => {
-                void saveCurrentJob();
-              }}
-              disabled={savingJob || loading}
-              className="cta-ghost flex-1 flex justify-center items-center gap-2"
-            >
-              {savingJob ? "Saving..." : "Save Job"}
-            </button>
             <button 
               onClick={handleGeneratePdf} 
               disabled={loading || savingJob} 
-              className="cta-main flex-1 flex justify-center items-center gap-2"
+              className="cta-main w-full flex justify-center items-center gap-2"
             >
               {loading ? "Generating..." : "Generate & Download PDF"}
             </button>

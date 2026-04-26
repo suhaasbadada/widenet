@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { listJobs, type JobRecord } from "@/lib/api/jobs";
 import { generateCoverLetter, generateColdEmail } from "@/lib/api/outreach";
+import SaveNewJobModal from "@/components/jobs/SaveNewJobModal";
 
 export default function OutreachPage() {
   const [savedJobs, setSavedJobs] = useState<JobRecord[]>([]);
@@ -16,6 +17,7 @@ export default function OutreachPage() {
   const [loading, setLoading] = useState<"cover-letter" | "cold-email" | null>(null);
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
 
   useEffect(() => {
     const loadJobs = async () => {
@@ -70,8 +72,18 @@ export default function OutreachPage() {
     }
   };
 
+  const handleNewJobSaved = (job: JobRecord) => {
+    setSavedJobs((prev) => [job, ...prev]);
+    applySelectedJob(job.id);
+  };
+
   return (
     <div className="animate-rise">
+      <SaveNewJobModal
+        isOpen={isSaveModalOpen}
+        onClose={() => setIsSaveModalOpen(false)}
+        onSaved={handleNewJobSaved}
+      />
       <div className="mb-8">
         <h2 className="font-display text-3xl font-bold text-slate-900">Outreach Studio</h2>
         <p className="text-slate-600 mt-2">Generate hyper-personalized cover letters and recruiter outreach messages.</p>
@@ -89,18 +101,29 @@ export default function OutreachPage() {
 
           <div className="flex flex-col gap-2">
             <label className="text-sm font-semibold text-[var(--accent)]">Select Saved Job (Optional)</label>
-            <select
-              value={selectedJobId}
-              onChange={(e) => applySelectedJob(e.target.value)}
-              className="h-12 px-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none bg-white"
-            >
-              <option value="">{jobsLoading ? "Loading saved jobs..." : "Select a saved job"}</option>
-              {savedJobs.map((job) => (
-                <option key={job.id} value={job.id}>
-                  {job.title} at {job.company}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedJobId}
+                onChange={(e) => applySelectedJob(e.target.value)}
+                className="flex-1 h-12 px-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none bg-white min-w-0"
+              >
+                <option value="">{jobsLoading ? "Loading..." : "Select a saved job"}</option>
+                {savedJobs.map((job) => (
+                  <option key={job.id} value={job.id}>
+                    {job.title} at {job.company}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setIsSaveModalOpen(true)}
+                title="Save new job"
+                aria-label="Save new job"
+                className="flex-shrink-0 h-12 w-12 rounded-xl border-2 border-[var(--accent)] text-[var(--accent)] flex items-center justify-center hover:bg-[var(--accent-soft)] transition text-2xl font-light"
+              >
+                +
+              </button>
+            </div>
           </div>
           
           <div className="flex flex-col gap-2">

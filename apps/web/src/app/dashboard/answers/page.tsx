@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { generateAnswer } from "@/lib/api/answers";
 import { listJobs, type JobRecord } from "@/lib/api/jobs";
 import { useAuth } from "@/components/providers/AuthProvider";
+import SaveNewJobModal from "@/components/jobs/SaveNewJobModal";
 
 type AnswerHistoryItem = {
   question: string;
@@ -19,6 +20,7 @@ export default function AnswersPage() {
   const [loading, setLoading] = useState(false);
   const [answerHistory, setAnswerHistory] = useState<AnswerHistoryItem[]>([]);
   const [error, setError] = useState("");
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
 
   useEffect(() => {
     const loadJobs = async () => {
@@ -71,8 +73,18 @@ export default function AnswersPage() {
     }
   };
 
+  const handleNewJobSaved = (job: JobRecord) => {
+    setJobs((prev) => [job, ...prev]);
+    setSelectedJobId(job.id);
+  };
+
   return (
     <div className="animate-rise">
+      <SaveNewJobModal
+        isOpen={isSaveModalOpen}
+        onClose={() => setIsSaveModalOpen(false)}
+        onSaved={handleNewJobSaved}
+      />
       <div className="mb-8">
         <h2 className="font-display text-3xl font-bold text-slate-900">Application Answers</h2>
         <p className="text-slate-600 mt-2">Generate tailored answers to specific behavioral or functional application questions.</p>
@@ -84,21 +96,32 @@ export default function AnswersPage() {
         </div>
       )}
 
-      <div className="max-w-2xl bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+      <div className="max-w-2xl mx-auto bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
         <div className="flex flex-col gap-2 mb-6">
           <label className="text-sm font-semibold text-[var(--accent)]">Select Saved Job</label>
-          <select
-            value={selectedJobId}
-            onChange={(e) => setSelectedJobId(e.target.value)}
-            className="h-12 px-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none bg-white"
-          >
-            <option value="">{jobsLoading ? "Loading saved jobs..." : "Choose one saved job"}</option>
-            {jobs.map((job) => (
-              <option key={job.id} value={job.id}>
-                {job.title} at {job.company}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedJobId}
+              onChange={(e) => setSelectedJobId(e.target.value)}
+              className="flex-1 h-12 px-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none bg-white min-w-0"
+            >
+              <option value="">{jobsLoading ? "Loading..." : "Choose one saved job"}</option>
+              {jobs.map((job) => (
+                <option key={job.id} value={job.id}>
+                  {job.title} at {job.company}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setIsSaveModalOpen(true)}
+              title="Save new job"
+              aria-label="Save new job"
+              className="flex-shrink-0 h-12 w-12 rounded-xl border-2 border-[var(--accent)] text-[var(--accent)] flex items-center justify-center hover:bg-[var(--accent-soft)] transition text-2xl font-light"
+            >
+              +
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-col gap-2 mb-6">
