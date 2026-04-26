@@ -91,7 +91,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen page-shell md:flex">
-      <aside className="hidden md:flex md:w-16 lg:w-16 md:flex-col md:justify-between md:sticky md:top-0 md:h-screen bg-white border-r border-slate-200 p-2">
+      <aside className="hidden md:flex md:w-16 lg:w-16 md:flex-col md:justify-between md:sticky md:top-0 md:h-screen bg-white border-r border-slate-200 p-2 md:z-40">
         <div>
           <div className="px-1 py-1.5 flex justify-center">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] font-bold text-sm" title="Widenet">
@@ -183,7 +183,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {isDesktopSettingsOpen && (
               <div
                 role="menu"
-                className="absolute left-11 bottom-0 w-44 rounded-xl border border-slate-200 bg-white shadow-lg py-1 z-20"
+                className="absolute left-11 bottom-0 w-44 rounded-xl border border-slate-200 bg-white shadow-lg py-1 z-[70]"
               >
                 <button
                   type="button"
@@ -264,7 +264,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {isMobileSettingsOpen && (
                 <div
                   role="menu"
-                  className="absolute right-0 mt-2 w-40 rounded-xl border border-slate-200 bg-white shadow-lg py-1 z-20"
+                  className="absolute right-0 mt-2 w-40 rounded-xl border border-slate-200 bg-white shadow-lg py-1 z-[70]"
                 >
                   <button
                     type="button"

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { createJob, type JobRecord } from "@/lib/api/jobs";
 
 interface SaveNewJobModalProps {
@@ -15,7 +16,12 @@ export default function SaveNewJobModal({ isOpen, onClose, onSaved }: SaveNewJob
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [mounted, setMounted] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -35,7 +41,7 @@ export default function SaveNewJobModal({ isOpen, onClose, onSaved }: SaveNewJob
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!mounted || !isOpen) return null;
 
   const handleSave = async () => {
     if (!title.trim() || !company.trim() || !description.trim()) {
@@ -60,14 +66,14 @@ export default function SaveNewJobModal({ isOpen, onClose, onSaved }: SaveNewJob
     }
   };
 
-  return (
-    // Panel floats centered — no overlay, no backdrop, page behind stays fully interactive.
-    <div
-      className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-11/12 max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
-      style={{ animation: "modal-pop 180ms cubic-bezier(0.34, 1.3, 0.64, 1) forwards" }}
-      aria-modal="true"
-      role="dialog"
-    >
+  return createPortal(
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 pointer-events-none">
+      <div
+        className="pointer-events-auto w-11/12 max-w-md max-h-[calc(100dvh-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
+        style={{ animation: "modal-pop 180ms cubic-bezier(0.34, 1.3, 0.64, 1) forwards" }}
+        aria-modal="true"
+        role="dialog"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h3 className="font-display font-bold text-lg text-slate-900">Save New Job</h3>
@@ -85,7 +91,7 @@ export default function SaveNewJobModal({ isOpen, onClose, onSaved }: SaveNewJob
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 flex flex-col gap-4">
+        <div className="px-6 py-5 flex-1 overflow-y-auto flex flex-col gap-4">
           {error && (
             <p className="text-sm text-[var(--warning)] bg-[var(--warning-soft)] px-3 py-2 rounded-lg">
               {error}
@@ -128,20 +134,19 @@ export default function SaveNewJobModal({ isOpen, onClose, onSaved }: SaveNewJob
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 flex gap-3">
-          <button type="button" onClick={onClose} className="cta-ghost flex-1">
-            Cancel
-          </button>
+        <div className="px-6 py-4 border-t border-slate-100">
           <button
             type="button"
             onClick={() => void handleSave()}
             disabled={saving}
-            className="cta-main flex-1"
+            className="cta-main w-full"
           >
             {saving ? "Saving..." : "Save Job"}
           </button>
         </div>
       </div>
+    </div>,
+    document.body
   );
 }
 
