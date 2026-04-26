@@ -192,7 +192,7 @@ export default function ResumesPage() {
               rows={12}
               value={jobDescription}
               onChange={(e) => setJobDescription(e.target.value)}
-              className="p-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none resize-y text-sm font-mono leading-relaxed bg-slate-50"
+              className="p-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none resize-y text-sm leading-relaxed bg-slate-50"
               placeholder="Paste the target job description here..."
             />
           </div>
