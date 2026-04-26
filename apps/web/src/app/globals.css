@@ -30,6 +30,7 @@ body {
     radial-gradient(circle at top left, #efe4d3 0%, transparent 35%),
     radial-gradient(circle at 90% 10%, #d8eadf 0%, transparent 40%),
     var(--background);
+  background-attachment: fixed;
 }
 
 .hero-flow {
