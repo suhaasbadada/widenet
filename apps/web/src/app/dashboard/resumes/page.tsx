@@ -16,6 +16,7 @@ export default function ResumesPage() {
   const [savingJob, setSavingJob] = useState(false);
   const [error, setError] = useState("");
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [saveModalAnchorRect, setSaveModalAnchorRect] = useState<DOMRect | null>(null);
 
   const loadJobs = async () => {
     setJobsLoading(true);
@@ -142,6 +143,7 @@ export default function ResumesPage() {
         isOpen={isSaveModalOpen}
         onClose={() => setIsSaveModalOpen(false)}
         onSaved={handleNewJobSaved}
+        anchorRect={saveModalAnchorRect}
       />
       <div className="mb-8 flex justify-between items-center">
         <div>
@@ -177,7 +179,10 @@ export default function ResumesPage() {
               </select>
               <button
                 type="button"
-                onClick={() => setIsSaveModalOpen(true)}
+                onClick={(e) => {
+                  setSaveModalAnchorRect(e.currentTarget.getBoundingClientRect());
+                  setIsSaveModalOpen(true);
+                }}
                 title="Save new job"
                 aria-label="Save new job"
                 className="flex-shrink-0 h-12 w-12 rounded-xl border-2 border-[var(--accent)] text-[var(--accent)] flex items-center justify-center hover:bg-[var(--accent-soft)] transition text-2xl font-light"

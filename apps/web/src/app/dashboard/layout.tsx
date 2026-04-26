@@ -94,12 +94,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside className="hidden md:flex md:w-16 lg:w-16 md:flex-col md:justify-between md:sticky md:top-0 md:h-screen bg-white border-r border-slate-200 p-2 md:z-40">
         <div>
           <div className="px-1 py-1.5 flex justify-center">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] font-bold text-sm" title="Widenet">
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent)] font-bold text-base" title="Widenet">
               W
             </span>
           </div>
 
-          <nav className="mt-4 flex flex-col items-center gap-1.5">
+          <nav className="mt-5 flex flex-col items-center gap-2.5">
             {navItems.map((item) => {
               const isActive = pathname.startsWith(item.path);
               return (
@@ -108,7 +108,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   href={item.path}
                   title={item.name}
                   aria-label={item.name}
-                  className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition ${
+                  className={`inline-flex h-10 w-10 items-center justify-center rounded-lg transition ${
                     isActive
                       ? "bg-[var(--accent-soft)] text-[var(--accent)]"
                       : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
@@ -119,39 +119,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </Link>
               );
             })}
+
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard/profile")}
+              title={user.name || "Profile"}
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-lg transition cursor-pointer mt-1.5 ${
+                profileActive
+                  ? "text-[var(--accent)] bg-[var(--accent-soft)]"
+                  : "text-slate-700 hover:text-[var(--accent)] hover:bg-slate-100"
+              }`}
+              aria-label="Open profile"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 21a8 8 0 0 0-16 0" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+              <span className="sr-only">Open profile</span>
+            </button>
           </nav>
         </div>
 
-        <div className="pt-2.5 border-t border-slate-200 flex flex-col items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => router.push("/dashboard/profile")}
-            title={user.name || "Profile"}
-            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition cursor-pointer ${
-              profileActive
-                ? "text-[var(--accent)] bg-[var(--accent-soft)]"
-                : "text-slate-700 hover:text-[var(--accent)] hover:bg-slate-100"
-            }`}
-            aria-label="Open profile"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M20 21a8 8 0 0 0-16 0" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-            <span className="sr-only">Open profile</span>
-          </button>
-
+        <div className="pt-2.5 border-t border-slate-200 flex flex-col items-center gap-2">
           <div className="relative" ref={desktopSettingsMenuRef}>
             <button
               type="button"
@@ -159,7 +159,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               aria-haspopup="menu"
               aria-expanded={isDesktopSettingsOpen}
               onClick={() => setIsDesktopSettingsOpen((prev) => !prev)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:text-[var(--accent)] hover:bg-slate-100 transition"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 hover:text-[var(--accent)] hover:bg-slate-100 transition"
               title="Settings"
             >
               <svg

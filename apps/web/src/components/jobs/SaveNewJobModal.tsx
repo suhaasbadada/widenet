@@ -8,9 +8,10 @@ interface SaveNewJobModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved: (job: JobRecord) => void;
+  anchorRect?: DOMRect | null;
 }
 
-export default function SaveNewJobModal({ isOpen, onClose, onSaved }: SaveNewJobModalProps) {
+export default function SaveNewJobModal({ isOpen, onClose, onSaved, anchorRect = null }: SaveNewJobModalProps) {
   const [title, setTitle] = useState("");
   const [company, setCompany] = useState("");
   const [description, setDescription] = useState("");
@@ -43,6 +44,37 @@ export default function SaveNewJobModal({ isOpen, onClose, onSaved }: SaveNewJob
 
   if (!mounted || !isOpen) return null;
 
+  const getPanelPosition = () => {
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const panelWidth = Math.min(viewportWidth * 0.92, 448);
+    const gap = 10;
+    const margin = 12;
+
+    if (!anchorRect) {
+      return {
+        top: Math.max(margin, (viewportHeight - 560) / 2),
+        left: Math.max(margin, (viewportWidth - panelWidth) / 2),
+      };
+    }
+
+    let left = anchorRect.right + gap;
+    if (left + panelWidth > viewportWidth - margin) {
+      left = anchorRect.left - panelWidth - gap;
+    }
+    if (left < margin) {
+      left = Math.max(margin, viewportWidth - panelWidth - margin);
+    }
+
+    const preferredTop = anchorRect.top - 8;
+    const maxTop = viewportHeight - 220;
+    const top = Math.max(margin, Math.min(preferredTop, maxTop));
+
+    return { top, left };
+  };
+
+  const panelPosition = getPanelPosition();
+
   const handleSave = async () => {
     if (!title.trim() || !company.trim() || !description.trim()) {
       setError("Role, Company, and Job Description are required.");
@@ -67,10 +99,14 @@ export default function SaveNewJobModal({ isOpen, onClose, onSaved }: SaveNewJob
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 pointer-events-none">
+    <div className="fixed inset-0 z-[80] pointer-events-none">
       <div
-        className="pointer-events-auto w-11/12 max-w-md max-h-[calc(100dvh-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
-        style={{ animation: "modal-pop 180ms cubic-bezier(0.34, 1.3, 0.64, 1) forwards" }}
+        className="pointer-events-auto fixed w-11/12 max-w-md max-h-[calc(100dvh-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
+        style={{
+          top: `${panelPosition.top}px`,
+          left: `${panelPosition.left}px`,
+          animation: "modal-pop 180ms cubic-bezier(0.34, 1.3, 0.64, 1) forwards",
+        }}
         aria-modal="true"
         role="dialog"
       >

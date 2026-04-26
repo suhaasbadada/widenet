@@ -18,6 +18,7 @@ export default function OutreachPage() {
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [saveModalAnchorRect, setSaveModalAnchorRect] = useState<DOMRect | null>(null);
 
   useEffect(() => {
     const loadJobs = async () => {
@@ -83,6 +84,7 @@ export default function OutreachPage() {
         isOpen={isSaveModalOpen}
         onClose={() => setIsSaveModalOpen(false)}
         onSaved={handleNewJobSaved}
+        anchorRect={saveModalAnchorRect}
       />
       <div className="mb-8">
         <h2 className="font-display text-3xl font-bold text-slate-900">Outreach Studio</h2>
@@ -116,7 +118,10 @@ export default function OutreachPage() {
               </select>
               <button
                 type="button"
-                onClick={() => setIsSaveModalOpen(true)}
+                onClick={(e) => {
+                  setSaveModalAnchorRect(e.currentTarget.getBoundingClientRect());
+                  setIsSaveModalOpen(true);
+                }}
                 title="Save new job"
                 aria-label="Save new job"
                 className="flex-shrink-0 h-12 w-12 rounded-xl border-2 border-[var(--accent)] text-[var(--accent)] flex items-center justify-center hover:bg-[var(--accent-soft)] transition text-2xl font-light"
