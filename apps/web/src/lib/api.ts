@@ -82,10 +82,17 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function getApiHealth(): Promise<{ ok: boolean; status: string }> {
   try {
+    // Always check /health at the API base URL root
     const data = await fetchJson<HealthResponse>("/health");
     return { ok: data.status === "ok", status: data.status };
   } catch {
-    return { ok: false, status: "down" };
+    // Try /api/v1/health as fallback (for legacy or misconfigured deployments)
+    try {
+      const data = await fetchJson<HealthResponse>("/api/v1/health");
+      return { ok: data.status === "ok", status: data.status };
+    } catch {
+      return { ok: false, status: "down" };
+    }
   }
 }
 
