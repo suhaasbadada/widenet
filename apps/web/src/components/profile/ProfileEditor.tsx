@@ -149,13 +149,17 @@ const MonthPicker = ({ value, onChange, placeholder }: { value: string, onChange
   );
 };
 
-type TabId = "personal" | "experience" | "education" | "projects";
+type TabId = "personal" | "experience" | "education" | "projects" | "skills";
 
 export function ProfileEditor({ profileData, setProfileData, onSave, saving, submitLabel }: ProfileEditorProps) {
   const [activeTab, setActiveTab] = useState<TabId>("personal");
   const [expandedExperienceIndex, setExpandedExperienceIndex] = useState<number | null>(null);
   const [expandedEducationIndex, setExpandedEducationIndex] = useState<number | null>(null);
   const [expandedProjectIndex, setExpandedProjectIndex] = useState<number | null>(null);
+  // Raw text drafts for skill inputs so commas aren't consumed mid-type.
+  const [skillDrafts, setSkillDrafts] = useState<Record<string, string>>({});
+  // Draft category names keyed by original category name to avoid remounting on each keystroke.
+  const [categoryDrafts, setCategoryDrafts] = useState<Record<string, string>>({});
 
   const updateField = (field: keyof ProfileResponse, value: any) => {
     setProfileData({ ...profileData, [field]: value });
@@ -355,7 +359,87 @@ export function ProfileEditor({ profileData, setProfileData, onSave, saving, sub
     { id: "experience", label: "Experience" },
     { id: "education", label: "Education" },
     { id: "projects", label: "Projects" },
+    { id: "skills", label: "Skills" },
   ];
+
+  const getSkills = (): Record<string, string[]> =>
+    profileData.structured_profile?.skills || {};
+
+  const updateSkills = (skills: Record<string, string[]>) => {
+    setProfileData({
+      ...profileData,
+      structured_profile: {
+        ...(profileData.structured_profile || {}),
+        skills,
+      },
+    });
+  };
+
+  const addSkillCategory = () => {
+    // Use a unique placeholder so multiple new rows don't collide.
+    const newKey = `New Category ${Date.now()}`;
+    const skills = { ...getSkills(), [newKey]: [] };
+    updateSkills(skills);
+    // Pre-seed an empty draft so the user sees a blank input immediately.
+    setCategoryDrafts((prev) => ({ ...prev, [newKey]: "" }));
+  };
+
+  const renameSkillCategory = (oldKey: string, newKey: string) => {
+    const prev = getSkills();
+    const updated: Record<string, string[]> = {};
+    for (const k of Object.keys(prev)) {
+      updated[k === oldKey ? newKey : k] = prev[k];
+    }
+    updateSkills(updated);
+  };
+
+  const getCategoryDraft = (key: string): string =>
+    key in categoryDrafts ? categoryDrafts[key] : key;
+
+  const commitCategoryDraft = (originalKey: string) => {
+    const draft = getCategoryDraft(originalKey).trim();
+    const finalKey = draft || originalKey;
+    if (finalKey !== originalKey) {
+      renameSkillCategory(originalKey, finalKey);
+      // Re-key any skill/category drafts that referenced the old key.
+      setSkillDrafts((prev) => {
+        if (!(originalKey in prev)) return prev;
+        const next = { ...prev, [finalKey]: prev[originalKey] };
+        delete next[originalKey];
+        return next;
+      });
+    }
+    setCategoryDrafts((prev) => {
+      const next = { ...prev };
+      delete next[originalKey];
+      return next;
+    });
+  };
+
+  const removeSkillCategory = (key: string) => {
+    const prev = { ...getSkills() };
+    delete prev[key];
+    updateSkills(prev);
+  };
+
+  const updateSkillList = (key: string, value: string) => {
+    const skills = { ...getSkills() };
+    skills[key] = value.split(",").map((s) => s.trim()).filter(Boolean);
+    updateSkills(skills);
+  };
+
+  const getSkillDraft = (key: string): string => {
+    if (key in skillDrafts) return skillDrafts[key];
+    return (getSkills()[key] || []).join(", ");
+  };
+
+  const commitSkillDraft = (key: string) => {
+    const raw = getSkillDraft(key);
+    const skills = { ...getSkills() };
+    skills[key] = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    updateSkills(skills);
+    setSkillDrafts((prev) => { const next = { ...prev }; delete next[key]; return next; });
+  };
 
   return (
     <form onSubmit={onSave} className="flex flex-col md:flex-row gap-6 lg:gap-10 items-start pb-20">
@@ -852,6 +936,116 @@ export function ProfileEditor({ profileData, setProfileData, onSave, saving, sub
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* ----------------- Skills ----------------- */}
+        {activeTab === "skills" && (
+          <div className="animate-rise">
+            <div className="flex justify-between items-end mb-8 border-b border-slate-100 pb-6">
+              <h3 className="font-display text-2xl text-slate-800">Skills</h3>
+              <button type="button" onClick={addSkillCategory} className="flex items-center gap-2 text-sm font-bold text-[var(--accent)] hover:opacity-70 transition-opacity">
+                <PlusIcon /> Add Category
+              </button>
+            </div>
+
+            {Object.keys(getSkills()).length === 0 ? (
+              <p className="text-slate-500 text-sm italic">No skill categories added yet. Click "Add Category" to start.</p>
+            ) : (
+              <div className="rounded-xl border border-slate-200 overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200">
+                      <th className="text-left px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 w-48 border-r border-slate-200">Category</th>
+                      <th className="text-left px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-500">Skills</th>
+                      <th className="w-12" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {Object.entries(getSkills()).map(([category, skillList], idx) => (
+                      <tr key={`${category}-${idx}`} className="group/row align-top hover:bg-slate-50 transition-colors">
+                        {/* Category column */}
+                        <td className="px-4 py-3 w-48 shrink-0 border-r border-slate-200">
+                          <input
+                            type="text"
+                            value={getCategoryDraft(category)}
+                            onChange={(e) => setCategoryDrafts((prev) => ({ ...prev, [category]: e.target.value }))}
+                            onBlur={() => commitCategoryDraft(category)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                commitCategoryDraft(category);
+                              }
+                            }}
+                            className="w-full px-3 py-2 rounded-lg border border-transparent hover:border-slate-200 focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] outline-none text-sm font-semibold text-slate-800 bg-transparent focus:bg-white transition-all"
+                            placeholder="Category"
+                          />
+                        </td>
+
+                        {/* Skills column */}
+                        <td className="px-4 py-3">
+                          {/* Inline input to append more skills */}
+                          <input
+                            type="text"
+                            value={getSkillDraft(category)}
+                            onChange={(e) => setSkillDrafts((prev) => ({ ...prev, [category]: e.target.value }))}
+                            onBlur={() => commitSkillDraft(category)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                commitSkillDraft(category);
+                              }
+                            }}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)] outline-none text-sm bg-white transition-all placeholder:text-slate-400"
+                            placeholder="Type skills, separate with commas, press Enter or click away"
+                          />
+                          {/* Pill tags row */}
+                          {skillList.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {skillList.map((skill, sIdx) => (
+                                <span
+                                  key={sIdx}
+                                  className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] pl-3 pr-2 py-0.5 text-xs font-semibold"
+                                >
+                                  {skill}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = [...skillList];
+                                      updated.splice(sIdx, 1);
+                                      const skills = { ...getSkills() };
+                                      skills[category] = updated;
+                                      updateSkills(skills);
+                                      setSkillDrafts((prev) => ({ ...prev, [category]: updated.join(", ") }));
+                                    }}
+                                    className="ml-0.5 rounded-full p-0.5 hover:bg-[var(--accent)] hover:text-white transition-colors"
+                                    title="Remove skill"
+                                  >
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Delete row */}
+                        <td className="px-3 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => removeSkillCategory(category)}
+                            className="p-1.5 text-slate-300 hover:text-red-500 transition-colors rounded-lg opacity-0 group-hover/row:opacity-100"
+                            title="Remove Category"
+                          >
+                            <TrashIcon />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 

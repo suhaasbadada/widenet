@@ -149,7 +149,12 @@ export default function StudioPage() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `tailored_resume.${format}`);
+      const nameParts = (user?.name || "").trim().split(/\s+/);
+      const firstName = nameParts[0] || "FN";
+      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : "LN";
+      const sanitize = (s: string) => s.replace(/[^a-zA-Z0-9]/g, "");
+      const filename = `${sanitize(firstName)}_${sanitize(lastName)}_${sanitize(job.company)}.${format}`;
+      link.setAttribute("download", filename);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
