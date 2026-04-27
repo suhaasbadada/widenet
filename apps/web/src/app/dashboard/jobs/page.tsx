@@ -1,3 +1,8 @@
+import { redirect } from "next/navigation";
+
+export default function JobsPage() {
+  redirect("/dashboard/studio");
+}
 "use client";
 
 import React, { useState } from "react";
