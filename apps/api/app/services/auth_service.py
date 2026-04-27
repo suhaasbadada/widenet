@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.security import create_access_token, ensure_jwt_configured, hash_password, verify_password
 from app.models.auth_credential import AuthCredential
 from app.models.user import User
-from app.schemas.auth import AuthLoginRequest, AuthRegisterRequest
+from app.schemas.auth import AuthLoginRequest, AuthRegisterRequest, ChangePasswordRequest
 from app.services import user_service
 
 
@@ -14,6 +14,14 @@ class AuthConflictError(ValueError):
 
 class InvalidCredentialsError(ValueError):
     """Raised when login credentials are invalid."""
+
+
+class InvalidCurrentPasswordError(ValueError):
+    """Raised when the supplied current password does not match the stored credential."""
+
+
+class CredentialNotFoundError(ValueError):
+    """Raised when a password credential does not exist for the target user."""
 
 
 def register_user(db: Session, payload: AuthRegisterRequest) -> tuple[User, str]:
@@ -70,3 +78,17 @@ def login_user(db: Session, payload: AuthLoginRequest) -> tuple[User, str]:
 
     access_token = create_access_token(user_id=str(user.id), email=user.email, role=user.role)
     return user, access_token
+
+
+def change_password(db: Session, user_id: str, payload: ChangePasswordRequest) -> None:
+    """Rotate a user's password after verifying the current password."""
+    credential = db.get(AuthCredential, user_id)
+    if credential is None:
+        raise CredentialNotFoundError("Password credential does not exist for this account.")
+
+    if not verify_password(payload.current_password, credential.password_hash):
+        raise InvalidCurrentPasswordError("Current password is incorrect.")
+
+    credential.password_hash = hash_password(payload.new_password)
+    db.add(credential)
+    db.commit()

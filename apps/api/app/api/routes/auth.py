@@ -2,9 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.core.authz import AuthenticatedUser, get_current_user
 from app.core.security import InvalidTokenError, SecurityConfigurationError, decode_access_token
 from app.db.session import get_db
-from app.schemas.auth import AuthLoginRequest, AuthRegisterRequest, AuthResponse
+from app.schemas.auth import AuthLoginRequest, AuthRegisterRequest, AuthResponse, ChangePasswordRequest
 from app.schemas.user import UserResponse
 from app.services import auth_service
 
@@ -64,3 +65,18 @@ def logout(
         raise HTTPException(status_code=401, detail=str(exc))
 
     return {"success": True, "data": {"logged_out": True}}
+
+
+@router.post("/change-password", response_model=dict)
+def change_password(
+    payload: ChangePasswordRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Change the authenticated user's password after validating current credentials."""
+    try:
+        auth_service.change_password(db=db, user_id=str(current_user.user_id), payload=payload)
+    except (auth_service.InvalidCurrentPasswordError, auth_service.CredentialNotFoundError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    return {"success": True, "data": {"password_changed": True}}

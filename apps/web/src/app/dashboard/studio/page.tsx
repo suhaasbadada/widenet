@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { generateAnswer } from "@/lib/api/answers";
 import { listJobs, type JobRecord } from "@/lib/api/jobs";
@@ -66,6 +66,12 @@ export default function StudioPage() {
   const [saveModalAnchorRect, setSaveModalAnchorRect] = useState<DOMRect | null>(null);
   const [isJobDescriptionOpen, setIsJobDescriptionOpen] = useState(false);
   const [error, setError] = useState("");
+  const jdScrollRef = useRef<HTMLDivElement | null>(null);
+  const [jdScrollMetrics, setJdScrollMetrics] = useState({
+    visible: false,
+    thumbTop: 0,
+    thumbHeight: 0,
+  });
 
   useEffect(() => {
     setActiveMode(normalizeMode(searchParams.get("mode")));
@@ -241,6 +247,52 @@ export default function StudioPage() {
     }
   };
 
+  const updateJdScrollMetrics = useCallback(() => {
+    const el = jdScrollRef.current;
+    if (!el) {
+      setJdScrollMetrics({ visible: false, thumbTop: 0, thumbHeight: 0 });
+      return;
+    }
+
+    const { clientHeight, scrollHeight, scrollTop } = el;
+    const hasOverflow = scrollHeight > clientHeight + 1;
+
+    if (!hasOverflow) {
+      setJdScrollMetrics({ visible: false, thumbTop: 0, thumbHeight: 0 });
+      return;
+    }
+
+    const thumbHeight = Math.max((clientHeight / scrollHeight) * clientHeight, 28);
+    const maxThumbTop = clientHeight - thumbHeight;
+    const maxScrollTop = scrollHeight - clientHeight;
+    const thumbTop = maxScrollTop > 0 ? (scrollTop / maxScrollTop) * maxThumbTop : 0;
+
+    setJdScrollMetrics({
+      visible: true,
+      thumbTop,
+      thumbHeight,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isJobDescriptionOpen) {
+      setJdScrollMetrics({ visible: false, thumbTop: 0, thumbHeight: 0 });
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      updateJdScrollMetrics();
+    });
+
+    const onResize = () => updateJdScrollMetrics();
+    window.addEventListener("resize", onResize);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [isJobDescriptionOpen, selectedJob?.description, updateJdScrollMetrics]);
+
   return (
     <div className="animate-rise max-w-6xl mx-auto">
       <SaveNewJobModal
@@ -341,27 +393,46 @@ export default function StudioPage() {
             </div>
           </div>
 
-          {selectedJob && (
+          {!isJobDescriptionOpen && (
             <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-sm">
               <span className="inline-flex rounded-full bg-[var(--accent-soft)] text-[var(--accent)] px-3 py-1.5 font-semibold">
-                {selectedJob.title}
+                {selectedJob?.title || "Role"}
               </span>
               <span className="inline-flex rounded-full bg-slate-100 text-slate-700 px-3 py-1.5 font-medium">
-                {selectedJob.company}
+                {selectedJob?.company || "Company"}
               </span>
             </div>
           )}
 
           {isJobDescriptionOpen && selectedJob && (
             <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-              <div className="flex items-center justify-between gap-4 mb-3">
+              <div className="mb-3">
                 <h4 className="font-display font-bold text-slate-900">Job Description</h4>
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  {selectedJob.title}
-                </span>
               </div>
-              <div className="max-h-64 overflow-auto whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
-                {selectedJob.description || "No job description saved for this role yet."}
+              <div className="relative">
+                <div
+                  ref={jdScrollRef}
+                  onScroll={updateJdScrollMetrics}
+                  className="jd-scroll max-h-64 overflow-y-scroll pr-5 whitespace-pre-wrap text-sm leading-relaxed text-slate-700"
+                >
+                  {selectedJob.description || "No job description saved for this role yet."}
+                </div>
+
+                {jdScrollMetrics.visible && (
+                  <div
+                    className="pointer-events-none absolute right-0 top-0 h-full w-2 rounded-full"
+                    style={{ backgroundColor: "var(--accent-soft)" }}
+                  >
+                    <div
+                      className="absolute left-0 w-2 rounded-full"
+                      style={{
+                        top: `${jdScrollMetrics.thumbTop}px`,
+                        height: `${jdScrollMetrics.thumbHeight}px`,
+                        backgroundColor: "var(--accent)",
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -530,9 +601,11 @@ export default function StudioPage() {
               </div>
 
               {outreachResult ? (
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex-1 overflow-auto whitespace-pre-wrap text-sm leading-relaxed text-slate-700 font-serif">
-                  {outreachResult}
-                </div>
+                <textarea
+                  value={outreachResult}
+                  onChange={(e) => setOutreachResult(e.target.value)}
+                    className="w-full p-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none resize-y bg-white text-sm leading-relaxed text-slate-800 min-h-[260px]"
+                />
               ) : (
                 <div className="flex-1 flex flex-col justify-center items-center text-center opacity-60">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-4"><path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path></svg>
@@ -569,29 +642,46 @@ export default function StudioPage() {
               <div className="mt-8 pt-6 border-t border-slate-200 animate-rise" style={{ animationDelay: "50ms" }}>
                 <div className="flex justify-between items-center mb-3 gap-4">
                   <h3 className="font-bold text-sm uppercase tracking-wider text-slate-500">Generated Answers</h3>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const compiled = answerHistory
-                        .map((entry, index) => `Q${index + 1}: ${entry.question}\nA${index + 1}: ${entry.answer}`)
-                        .join("\n\n");
-                      void navigator.clipboard.writeText(compiled);
-                    }}
-                    className="text-xs font-bold uppercase tracking-wider text-[var(--accent)] hover:underline"
-                  >
-                    Copy All
-                  </button>
                 </div>
                 <div className="flex flex-col gap-3">
                   {answerHistory.map((entry, index) => (
                     <div
                       key={`${entry.question}-${index}`}
-                      className="p-4 bg-[var(--background)] rounded-xl border border-[var(--accent-soft)] text-sm leading-relaxed text-slate-800"
+                      className="p-4 bg-white rounded-xl border border-slate-200 text-sm leading-relaxed text-slate-800"
                     >
-                      <p className="text-xs uppercase tracking-wider font-semibold text-slate-500 mb-2">Question</p>
-                      <p className="mb-4">{entry.question}</p>
-                      <p className="text-xs uppercase tracking-wider font-semibold text-slate-500 mb-2">Answer</p>
-                      <p>{entry.answer}</p>
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <p className="text-xs uppercase tracking-wider font-semibold text-slate-500">Generated Answer {index + 1}</p>
+                        <button
+                          type="button"
+                          onClick={() => void navigator.clipboard.writeText(entry.answer)}
+                          className="text-xs font-bold uppercase tracking-wider text-[var(--accent)] hover:underline"
+                        >
+                          Copy Answer
+                        </button>
+                      </div>
+
+                      <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5">
+                        <p className="text-xs uppercase tracking-wider font-semibold text-slate-500 mb-1">Question</p>
+                        <p className="text-sm font-semibold text-[var(--accent)]">{entry.question}</p>
+                      </div>
+
+                      <p className="text-xs uppercase tracking-wider font-semibold text-slate-500 mb-2">Answer (Editable)</p>
+                      <textarea
+                        value={entry.answer}
+                        onChange={(e) => {
+                          const nextAnswer = e.target.value;
+                          setAnswerHistory((prev) => {
+                            const next = [...prev];
+                            next[index] = {
+                              ...next[index],
+                              answer: nextAnswer,
+                            };
+                            return next;
+                          });
+                        }}
+                        rows={5}
+                        className="w-full p-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none resize-y bg-white"
+                      />
                     </div>
                   ))}
                 </div>

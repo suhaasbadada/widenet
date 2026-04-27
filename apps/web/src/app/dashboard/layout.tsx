@@ -38,11 +38,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     };
   }, []);
 
-  useEffect(() => {
-    setIsDesktopSettingsOpen(false);
-    setIsMobileSettingsOpen(false);
-  }, [pathname]);
-
   const handleLogout = async () => {
     await logout();
     setUser(null);
@@ -180,7 +175,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               aria-expanded={isDesktopSettingsOpen}
               onClick={() => setIsDesktopSettingsOpen((prev) => !prev)}
               className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 hover:text-[var(--accent)] hover:bg-slate-100 transition"
-              title="Settings"
+              title="Change Password"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -197,7 +192,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7z" />
                 <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 0 1-4 0v-.09a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01A1.7 1.7 0 0 0 10 3.09V3a2 2 0 0 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56h.01a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01A1.7 1.7 0 0 0 20.91 10H21a2 2 0 0 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15z" />
               </svg>
-              <span className="sr-only">Settings</span>
+              <span className="sr-only">Change Password</span>
             </button>
 
             {isDesktopSettingsOpen && (
@@ -205,6 +200,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 role="menu"
                 className="absolute left-11 bottom-0 w-44 rounded-xl border border-slate-200 bg-white shadow-lg py-1 z-[70]"
               >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsDesktopSettingsOpen(false);
+                    router.push("/dashboard/settings");
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 hover:text-[var(--accent)] transition"
+                >
+                  Change Password
+                </button>
                 <button
                   type="button"
                   role="menuitem"
@@ -286,6 +292,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   role="menu"
                   className="absolute right-0 mt-2 w-40 rounded-xl border border-slate-200 bg-white shadow-lg py-1 z-[70]"
                 >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsMobileSettingsOpen(false);
+                      router.push("/dashboard/settings");
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 hover:text-[var(--accent)] transition"
+                  >
+                    Change Password
+                  </button>
                   <button
                     type="button"
                     role="menuitem"

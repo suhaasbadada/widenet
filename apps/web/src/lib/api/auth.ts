@@ -14,7 +14,23 @@ export interface AuthResponse {
   user: UserResponse;
 }
 
-export async function login(payload: any): Promise<AuthResponse> {
+export interface LoginPayload {
+  email: string;
+  password: string;
+}
+
+export interface RegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+}
+
+export interface ChangePasswordPayload {
+  current_password: string;
+  new_password: string;
+}
+
+export async function login(payload: LoginPayload): Promise<AuthResponse> {
   const data = await apiClient<AuthResponse>("/auth/login", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -24,7 +40,7 @@ export async function login(payload: any): Promise<AuthResponse> {
   return data;
 }
 
-export async function register(payload: any): Promise<AuthResponse> {
+export async function register(payload: RegisterPayload): Promise<AuthResponse> {
   const data = await apiClient<AuthResponse>("/auth/register", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -44,4 +60,11 @@ export async function logout(): Promise<void> {
   } finally {
     clearAuthToken();
   }
+}
+
+export async function changePassword(payload: ChangePasswordPayload): Promise<void> {
+  await apiClient<{ password_changed: boolean }>("/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
