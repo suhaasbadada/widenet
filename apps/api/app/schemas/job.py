@@ -12,6 +12,7 @@ class JobCreate(BaseModel):
 
 class JobResponse(BaseModel):
     id: uuid.UUID
+    user_id: uuid.UUID
     title: str
     company: str
     description: str | None
