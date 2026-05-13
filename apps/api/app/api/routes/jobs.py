@@ -1,12 +1,12 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.schemas.job import JobCreate, JobResponse
 from app.core.authz import AuthenticatedUser, get_current_user
-from app.services import job_service
+from app.services import job_service, workday_skills_service
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -46,4 +46,27 @@ def get_job(
         raise HTTPException(status_code=404, detail=str(exc))
 
     return {"success": True, "data": JobResponse.model_validate(job).model_dump()}
+
+
+@router.get("/{job_id}/workday-skills", response_model=dict)
+def get_workday_skills(
+    job_id: uuid.UUID,
+    max_skills: int = Query(default=30, ge=10, le=60),
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> dict:
+    """Generate a copy-pasteable Workday skills list for the selected job."""
+    try:
+        response = workday_skills_service.generate_workday_skills(
+            db=db,
+            user_id=current_user.user_id,
+            job_id=job_id,
+            max_skills=max_skills,
+        )
+    except job_service.JobNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except workday_skills_service.WorkdaySkillsGenerationError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    return {"success": True, "data": response.model_dump()}
 

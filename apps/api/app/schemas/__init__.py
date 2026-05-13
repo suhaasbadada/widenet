@@ -16,6 +16,7 @@ from app.schemas.profile import ProfileCreate, ProfileResponse, ProfileUpdate
 from app.schemas.resume_render_schema import ResumeRenderDocxRequest, ResumeRenderPdfRequest
 from app.schemas.resume_schema import ResumeGenerateRequest, ResumeGenerateResponse
 from app.schemas.user import UserCreate, UserResponse, UserSelfUpdate, UserUpdate
+from app.schemas.workday_skills import WorkdaySkillsResponse
 
 __all__ = [
     "UserCreate",
@@ -50,4 +51,5 @@ __all__ = [
     "GeneratedContentCreate",
     "GeneratedContentResponse",
     "UserSelfUpdate",
+    "WorkdaySkillsResponse",
 ]

@@ -490,6 +490,47 @@ def score_job_match(
 
 
 # ---------------------------------------------------------------------------
+# Workday skills extraction
+# ---------------------------------------------------------------------------
+
+_WORKDAY_SKILLS_SYSTEM = """
+You are an ATS optimization assistant for Workday job applications.
+
+Return ONLY a JSON object with exactly this field:
+{
+  "skills": ["skill1", "skill2"]
+}
+
+Rules:
+- Extract concrete, ATS-relevant skills from the provided job description.
+- Prioritize exact terms from the JD, then include closely-related normalized terms when useful.
+- If candidate profile context is provided, prioritize skills the candidate can credibly claim.
+- Do not include soft traits (e.g., communication, leadership) unless explicitly required as skills.
+- Do not include duplicates.
+- Keep each skill concise (1-4 words).
+- Return between 15 and max_skills items.
+""".strip()
+
+
+def generate_workday_skills(
+    profile: dict[str, Any] | None,
+    job_title: str,
+    company: str,
+    job_description: str,
+    max_skills: int = 30,
+) -> dict[str, Any]:
+    """Generate ATS-focused Workday skills for a selected job posting."""
+    user_content = (
+        f"Candidate profile (optional):\n{json.dumps(profile or {}, indent=2)}\n\n"
+        f"Job title: {job_title}\n"
+        f"Company: {company}\n"
+        f"max_skills: {max_skills}\n\n"
+        f"Job description:\n{job_description}"
+    )
+    return _chat(system_prompt=_WORKDAY_SKILLS_SYSTEM, user_content=user_content)
+
+
+# ---------------------------------------------------------------------------
 # Job copilot generation
 # ---------------------------------------------------------------------------
 

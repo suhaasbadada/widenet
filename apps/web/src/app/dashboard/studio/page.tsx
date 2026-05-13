@@ -3,13 +3,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { generateAnswer } from "@/lib/api/answers";
-import { listJobs, type JobRecord } from "@/lib/api/jobs";
+import { getWorkdaySkills, listJobs, type JobRecord } from "@/lib/api/jobs";
 import { generateCoverLetter, generateColdEmail } from "@/lib/api/outreach";
 import { generateAndRenderFile } from "@/lib/api/resumes";
 import { useAuth } from "@/components/providers/AuthProvider";
 import SaveNewJobModal from "@/components/jobs/SaveNewJobModal";
 
-type StudioMode = "resume" | "outreach" | "answers";
+type StudioMode = "resume" | "outreach" | "answers" | "workday-skills";
 type OutreachType = "cover-letter" | "cold-email";
 type ResumeFormat = "pdf" | "docx";
 
@@ -34,10 +34,15 @@ const modeOptions: Array<{ id: StudioMode; label: string; description: string }>
     label: "Answers",
     description: "Build reusable application responses for this job.",
   },
+  {
+    id: "workday-skills",
+    label: "Workday Skills",
+    description: "Generate ATS-ready skill keywords from the selected job.",
+  },
 ];
 
 function normalizeMode(value: string | null): StudioMode {
-  if (value === "resume" || value === "outreach" || value === "answers") {
+  if (value === "resume" || value === "outreach" || value === "answers" || value === "workday-skills") {
     return value;
   }
   return "resume";
@@ -58,6 +63,8 @@ export default function StudioPage() {
   const [question, setQuestion] = useState("");
   const [answerHistory, setAnswerHistory] = useState<AnswerHistoryItem[]>([]);
   const [outreachResult, setOutreachResult] = useState("");
+  const [workdaySkillsCsv, setWorkdaySkillsCsv] = useState("");
+  const [workdaySkillsList, setWorkdaySkillsList] = useState<string[]>([]);
   const [resumeStatus, setResumeStatus] = useState("");
   const [loading, setLoading] = useState<StudioMode | null>(null);
   const [outreachLoading, setOutreachLoading] = useState<OutreachType | null>(null);
@@ -242,6 +249,26 @@ export default function StudioPage() {
       setQuestion("");
     } catch (err: any) {
       setError(err.message || "Failed to generate answer.");
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleWorkdaySkillsGenerate = async () => {
+    const job = requireSelectedJob();
+    if (!job) {
+      return;
+    }
+
+    setError("");
+    setLoading("workday-skills");
+
+    try {
+      const response = await getWorkdaySkills(job.id);
+      setWorkdaySkillsList(response.skills || []);
+      setWorkdaySkillsCsv(response.skills_csv || "");
+    } catch (err: any) {
+      setError(err.message || "Failed to generate Workday skills.");
     } finally {
       setLoading(null);
     }
@@ -462,19 +489,6 @@ export default function StudioPage() {
                 </button>
               );
             })}
-
-            <button
-              type="button"
-              disabled
-              aria-disabled="true"
-              title="Workday Skills coming soon"
-              className="rounded-2xl border border-slate-200 bg-slate-100 px-4 py-4 text-left text-slate-400 cursor-not-allowed"
-            >
-              <div className="font-display font-bold text-lg">Workday Skills</div>
-              <div className="mt-1 text-sm text-slate-400">
-                Helps you fill out Workday skills faster.
-              </div>
-            </button>
           </div>
         </div>
 
@@ -692,6 +706,74 @@ export default function StudioPage() {
                 <p className="text-sm font-medium text-slate-600">Your generated answers will build up here as a reusable response bank.</p>
               </div>
             )}
+          </div>
+        )}
+
+        {activeMode === "workday-skills" && (
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,340px)_1fr] gap-6">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-5">
+              <div>
+                <h3 className="font-bold font-display text-lg text-slate-900">Workday Skills Generator</h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  Uses the selected job description to generate ATS-ready skills you can paste directly into Workday.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => void handleWorkdaySkillsGenerate()}
+                disabled={loading === "workday-skills" || !selectedJob}
+                className="cta-main w-full"
+              >
+                {loading === "workday-skills" ? "Generating..." : "Generate Workday Skills"}
+              </button>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col min-h-[340px]">
+              <div className="flex items-center justify-between mb-4 gap-4">
+                <h3 className="font-bold font-display text-lg text-slate-900">Copy-Paste Skills</h3>
+                {workdaySkillsCsv && (
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard.writeText(workdaySkillsCsv)}
+                    className="text-xs font-bold uppercase tracking-wider text-[var(--accent)] hover:underline"
+                  >
+                    Copy Skills
+                  </button>
+                )}
+              </div>
+
+              {workdaySkillsCsv ? (
+                <>
+                  <textarea
+                    value={workdaySkillsCsv}
+                    onChange={(e) => setWorkdaySkillsCsv(e.target.value)}
+                    className="w-full p-3 rounded-xl border border-slate-300 focus:border-[var(--accent)] outline-none resize-y bg-white text-sm leading-relaxed text-slate-800 min-h-[170px]"
+                  />
+
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs uppercase tracking-wider font-semibold text-slate-500 mb-3">
+                      Parsed Skills ({workdaySkillsList.length})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {workdaySkillsList.map((skill) => (
+                        <span
+                          key={skill}
+                          className="inline-flex rounded-full bg-[var(--accent-soft)] text-[var(--accent)] px-3 py-1.5 text-xs font-semibold"
+                        >
+                          {skill}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 flex flex-col justify-center items-center text-center opacity-60">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-4"><path d="M20 7h-9" /><path d="M14 17H5" /><circle cx="17" cy="17" r="3" /><circle cx="7" cy="7" r="3" /></svg>
+                  <p className="text-sm font-medium text-slate-600">Generated Workday skills will appear here</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </section>
